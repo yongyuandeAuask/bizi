@@ -1,0 +1,1528 @@
+/* 
+ * by币子
+ */
+
+#include "图片调用.h"
+#include "物资ID.h"
+#include "辅助类.h"
+
+extern 绘制 绘制;
+extern bool 悬浮窗; // 声明此变量定义在其他文件中
+std::map<int, TextureInfo> 手持图片;
+std::map < std::string, std::chrono::steady_clock::time_point> rescueTimers;
+std::map < std::string, std::chrono::steady_clock::time_point> 捏雷Timers;
+std::map < std::string, std::chrono::steady_clock::time_point> 自救Timers;
+void drawCountdownCircle(float MIDDLE, float top, int remainingTime, int totalTime, ImColor progressColor) {
+    ImGui::GetForegroundDrawList()-> AddCircleArc(
+ImVec2(MIDDLE, top - 74), 20, { 0, 360 },
+    ImColor(255, 255, 255, 100), 0, 3
+    );
+    float percentage = (float)remainingTime / totalTime;
+    float angle = percentage * 360.0f;
+    ImGui::GetForegroundDrawList()-> AddCircleArc(
+ImVec2(MIDDLE, top - 74), 20, { 0, angle },
+    progressColor, 0, 3
+    );
+    std::string timeText = std::to_string(remainingTime);
+    auto textSize = ImGui::CalcTextSize(timeText.c_str(), 0, 20);
+    ImGui::GetForegroundDrawList()-> AddText(
+    NULL, 50,
+    ImVec2(MIDDLE - (textSize.x / 2), top - 74 - 10),
+    ImColor(255, 0, 0, 255), timeText.c_str()
+    );
+}
+
+
+static int getLength(const char* str) {
+    int len = 0;
+    while (*str) {
+        if ((*str & 0xC0) != 0x80) {
+            len++;
+        }
+        ++str;
+    }
+    return len;
+}
+
+void 绘图::初始化绘图(int X, int Y) {
+    if (Y < X) {
+        this->PX = X / 2;
+        this->PY = Y / 2;
+    } else {
+        this->PX = Y / 2;
+        this->PY = X / 2;
+    }
+}
+
+void 更新救人倒计时() {
+    auto it = rescueTimers.begin();
+    while (it != rescueTimers.end()) {
+        auto elapsed = std::chrono::duration_cast < std::chrono::seconds > (
+        std::chrono::steady_clock::now() - it-> second
+        ).count();
+        if (elapsed >= 10) it = rescueTimers.erase(it);
+        else ++ it;
+    }
+}
+
+void 更新自救倒计时() {
+    auto it = 自救Timers.begin();
+    while (it != 自救Timers.end()) {
+        auto elapsed = std::chrono::duration_cast < std::chrono::seconds > (
+        std::chrono::steady_clock::now() - it-> second
+        ).count();
+        if (elapsed >= 10) it = 自救Timers.erase(it);
+        else ++ it;
+    }
+}
+void 更新捏雷倒计时() {
+    auto it = 捏雷Timers.begin();
+    while (it != 捏雷Timers.end()) {
+        auto elapsed = std::chrono::duration_cast < std::chrono::seconds > (
+        std::chrono::steady_clock::now() - it-> second
+        ).count();
+        if (elapsed >= 7) it = 捏雷Timers.erase(it);
+        else ++ it;
+    }
+}
+
+void AddTextBold(ImDrawList *Draw,float size,int x, int y, ImVec4 color,ImVec4 color1, const char* str)
+{
+    ImGui::GetBackgroundDrawList()->AddText(NULL, size,ImVec2(x + 1, y), ImGui::ColorConvertFloat4ToU32(color1), str);
+    ImGui::GetBackgroundDrawList()->AddText(NULL, size,ImVec2(x - 0.1, y), ImGui::ColorConvertFloat4ToU32(color1), str);
+    ImGui::GetBackgroundDrawList()->AddText(NULL, size,ImVec2(x, y + 1), ImGui::ColorConvertFloat4ToU32(color1), str);
+    ImGui::GetBackgroundDrawList()->AddText(NULL, size,ImVec2(x, y - 1), ImGui::ColorConvertFloat4ToU32(color1), str);
+    ImGui::GetBackgroundDrawList()->AddText(NULL, size,ImVec2(x, y), ImGui::ColorConvertFloat4ToU32(color), str);
+}
+
+void 绘图::RenderRadarScan(ImDrawList* draw_list, ImVec2 center, float radius, int numSegments, float& rotationAngle, float lineLength) {
+    ImVec2 outerCirclePos = ImVec2(center.x + radius * cos(rotationAngle), center.y + radius * sin(rotationAngle));
+    draw_list->AddCircleFilled(center, radius, IM_COL32(255, 255, 255, 55), numSegments);
+    draw_list->AddCircle(center, radius * 0.75f, IM_COL32_WHITE, numSegments);
+    draw_list->AddCircle(center, radius * 0.5f, IM_COL32_WHITE, numSegments);
+    draw_list->AddCircle(center, radius, IM_COL32_WHITE, numSegments);
+    draw_list->AddLine(ImVec2(center.x - lineLength, center.y), ImVec2(center.x + lineLength, center.y), IM_COL32_WHITE);
+    draw_list->AddLine(ImVec2(center.x, center.y - lineLength), ImVec2(center.x, center.y + lineLength), IM_COL32_WHITE);
+}
+
+void 绘图::初始化坐标(D4DVector& 屏幕坐标, 骨骼数据& 骨骼) {
+    left = 骨骼.Head.X - 屏幕坐标.Z / 2;
+    right = 骨骼.Head.X + 屏幕坐标.Z / 2;
+    top = 骨骼.Pelvis.Y - ((骨骼.Head.X != 0) ? (骨骼.Pelvis.Y - 骨骼.Head.Y) : (骨骼.Pelvis.Y - 骨骼.Chest.Y)) - 屏幕坐标.Z / 5;
+    bottom = (骨骼.Left_Ankle.Y < 骨骼.Right_Ankle.Y) ? (骨骼.Right_Ankle.Y + 屏幕坐标.Z / 10) : (骨骼.Left_Ankle.Y + 屏幕坐标.Z / 10);
+    MIDDLE = 屏幕坐标.X + 屏幕坐标.Z / 2;
+    BOTTOM = 屏幕坐标.Y + 屏幕坐标.Z;
+    TOP = 屏幕坐标.Y - 屏幕坐标.Z;
+    屏幕坐标.X += 屏幕坐标.Z / 2;  // 身位矫正，向右挪移半个身位
+}
+/*
+void 绘图::绘制手持(int 手持, int 状态, int 子弹, int 最大子弹) {
+    if (绘制.按钮.手持绘图 == 1) {
+        手持 = heldconversion(手持);
+        if (手持图片.find(手持) != 手持图片.end()) {
+            float addY = 0;
+            if (绘制.按钮.血条绘图 == 1) {
+                addY = 40;
+            } else if (绘制.按钮.血条绘图 == 2) {
+                addY = 30;
+            }
+            
+            // 计算名字背景框的位置和尺寸
+            float 名字背景框宽度 = 160.0f; // 名字背景框的宽度
+            float 名字背景框高度 = 27.0f;  // 名字背景框的高度
+            float 名字背景框左上X = MIDDLE - 名字背景框宽度 / 2.0f;
+            float 名字背景框左上Y = top - 42.0f;
+            float 名字背景框右下X = MIDDLE + 名字背景框宽度 / 2.0f;
+            float 名字背景框右下Y = top - 15.0f;
+            
+            // 计算手持图片的位置（居中在名字背景框上方）
+            float 手持图片宽度 = 75.0f * 0.7f;
+            float 手持图片高度 = 35.0f * 0.7f;
+            float 手持图片左上X = MIDDLE - 手持图片宽度;
+            float 手持图片左上Y = 名字背景框左上Y - 手持图片高度 - 5.0f - addY; // 在名字上方5像素
+            float 手持图片右下X = MIDDLE + 手持图片宽度;
+            float 手持图片右下Y = 名字背景框左上Y - 5.0f - addY; // 在名字上方5像素
+            
+            // 绘制手持图片
+            ImGui::GetForegroundDrawList()->AddImage(手持图片[手持].textureId, 
+                ImVec2(手持图片左上X, 手持图片左上Y), 
+                ImVec2(手持图片右下X, 手持图片右下Y), 
+                ImVec2(0, 0), ImVec2(1, 1), ImColor(ImVec4(1.0f, 1.0f, 1.0f, 1.0f)));
+
+            // 如果需要绘制手持文本（子弹数量），取消注释并调整位置
+            /*
+            string b = " [" + to_string(子弹) + "/" + to_string(最大子弹) + "]";
+            auto textSize = ImGui::CalcTextSize(b.c_str(), 0, 20);
+            ImColor color = ImColor(static_cast<int>(绘制.手持颜色[0] * 255 + 0.5), static_cast<int>(绘制.手持颜色[1] * 255 + 0.5), static_cast<int>(绘制.手持颜色[2] * 255 + 0.5), static_cast<int>(绘制.手持颜色[3] * 255 + 0.5));
+            绘制加粗文本(20, MIDDLE - (textSize.x / 2), 手持图片右下Y + 5, color, color, b.c_str());
+            */
+            /*
+        }
+    } else {
+        // 计算名字背景框的位置和尺寸
+        float 名字背景框宽度 = 160.0f; // 名字背景框的宽度
+        float 名字背景框高度 = 27.0f;  // 名字背景框的高度
+        float 名字背景框左上X = MIDDLE - 名字背景框宽度 / 2.0f;
+        float 名字背景框左上Y = top - 42.0f;
+        
+        string b = GetHolGunItem(手持);
+        // b += " [" + to_string(子弹) + "/" + to_string(最大子弹) + "]";
+        auto textSize = ImGui::CalcTextSize(b.c_str(), 0, 20);
+        
+        // 计算手持文本位置（居中在名字背景框上方）
+        float 手持文本X = MIDDLE - (textSize.x / 2.0f);
+        float 手持文本Y = 名字背景框左上Y - 20.0f; // 在名字上方
+        
+        ImColor color = ImColor(static_cast<int>(绘制.手持颜色[0] * 255 + 0.5), static_cast<int>(绘制.手持颜色[1] * 255 + 0.5), static_cast<int>(绘制.手持颜色[2] * 255 + 0.5), static_cast<int>(绘制.手持颜色[3] * 255 + 0.5));
+        绘制加粗文本(20, 手持文本X, 手持文本Y, color, color, b.c_str());
+    }
+
+    // 绘制状态信息（保持原来的位置）
+    string a = GetHol(状态);
+    auto Size = ImGui::CalcTextSize(a.c_str(), 0, 20);
+    绘制加粗文本(20, MIDDLE - (Size.x / 2), top - 74, 颜色.白色, 颜色.白色, a.c_str());
+}
+
+void 绘图::绘制名字(string 名字, bool isboot, float 计时, bool 是否掐雷, char* 类名, int 阵营, int Bonecount){
+    // 计算名字文本的尺寸
+    string 名字显示文本 = (isboot && 阵营 != -1) ? "isBot" : 名字;
+    
+    if (strstr(类名, "BOSS") != 0) {
+        名字显示文本 += "[BOSS]";
+    }
+    if(是否掐雷) {
+        char buffer[50];
+        float 计时保留一位小数点 = static_cast<float>(计时);
+        std::sprintf(buffer, "%.1f", 计时保留一位小数点);
+        名字显示文本 += " 计时-[" + std::string(buffer) + "]";
+    }
+    
+    auto 名字文本尺寸 = ImGui::CalcTextSize(名字显示文本.c_str());
+    
+    // 计算名字文本的X位置（在方框上方居中）
+    float 方框宽度 = right - left;
+    float 方框中心X = left + 方框宽度 / 2.0f;
+    float 名字位置X = 方框中心X - 名字文本尺寸.x / 2.0f;
+    
+    // 计算名字文本的Y位置（固定在方框上方）
+    float 名字位置Y = top - 38.0f; // 保持原来的Y位置
+    
+    // 绘制名字背景框（如果需要）
+    if (!绘制.按钮.隐藏名字背景) {
+        float 名字背景框宽度 = 名字文本尺寸.x + 20.0f; // 在文本两侧各加10像素的边距
+        float 名字背景框高度 = 27.0f;
+        float 背景框左上X = 名字位置X - 10.0f; // 向左偏移10像素
+        float 背景框左上Y = 名字位置Y - 4.0f;  // 向上偏移4像素
+        float 背景框右下X = 名字位置X + 名字文本尺寸.x + 10.0f; // 向右偏移10像素
+        float 背景框右下Y = 名字位置Y + 名字文本尺寸.y + 4.0f;   // 向下偏移4像素
+        
+        ImGui::GetBackgroundDrawList()->AddRectFilled(
+            {背景框左上X, 背景框左上Y}, 
+            {背景框右下X, 背景框右下Y},
+            ImColor(0, 0, 0, 140), 4, 0
+        );
+    }
+    
+    // 绘制名字文本
+    AddTextBold(ImGui::GetBackgroundDrawList(), 16, 名字位置X, 名字位置Y, 
+                ImColor(255, 255, 255, 255), ImColor(0, 0, 0, 255), 名字显示文本.c_str());
+    
+    // 绘制阵营数字（如果需要，可以调整位置）
+    std::string 阵营文本 = std::to_string((int)阵营);
+    auto 阵营文本尺寸 = ImGui::CalcTextSize(阵营文本.c_str());
+    float 阵营位置X = 名字位置X - 阵营文本尺寸.x - 5.0f; // 在名字文本左侧5像素
+    float 阵营位置Y = 名字位置Y;
+    
+    AddTextBold(ImGui::GetBackgroundDrawList(), 18, 阵营位置X, 阵营位置Y, 
+                ImColor(255, 255, 255, 255), ImColor(0, 0, 0, 255), 阵营文本.c_str());
+}
+*/
+
+void 绘图::绘制手持(int 手持, int 状态, int 子弹, int 最大子弹) {
+    if (绘制.按钮.手持绘图 == 1) {
+        手持 = heldconversion(手持);
+        if (手持图片.find(手持) != 手持图片.end()) {
+            float addY = 0;
+            if (绘制.按钮.血条绘图 == 1) {
+                addY = 40;
+            } else if (绘制.按钮.血条绘图 == 2) {
+                addY = 30;
+            }
+            
+            // 计算名字背景框的位置和尺寸
+            float 名字背景框宽度 = 160.0f; // 名字背景框的宽度
+            float 名字背景框高度 = 27.0f;  // 名字背景框的高度
+            float 名字背景框左上X = MIDDLE - 名字背景框宽度 / 2.0f;
+            float 名字背景框左上Y = top - 42.0f;
+            float 名字背景框右下X = MIDDLE + 名字背景框宽度 / 2.0f;
+            float 名字背景框右下Y = top - 15.0f;
+            
+            // 计算手持图片的位置（居中在名字背景框上方）
+            float 手持图片宽度 = 75.0f * 0.7f;
+            float 手持图片高度 = 35.0f * 0.7f;
+            float 手持图片左上X = MIDDLE - 手持图片宽度;
+            float 手持图片左上Y = 名字背景框左上Y - 手持图片高度 - 5.0f - addY; // 在名字上方5像素
+            float 手持图片右下X = MIDDLE + 手持图片宽度;
+            float 手持图片右下Y = 名字背景框左上Y - 5.0f - addY; // 在名字上方5像素
+            
+            // 绘制手持图片
+            ImGui::GetForegroundDrawList()->AddImage(手持图片[手持].textureId, 
+                ImVec2(手持图片左上X, 手持图片左上Y), 
+                ImVec2(手持图片右下X, 手持图片右下Y), 
+                ImVec2(0, 0), ImVec2(1, 1), ImColor(ImVec4(1.0f, 1.0f, 1.0f, 1.0f)));
+
+            // 如果需要绘制手持文本（子弹数量），取消注释并调整位置
+            /*
+            string b = " [" + to_string(子弹) + "/" + to_string(最大子弹) + "]";
+            auto textSize = ImGui::CalcTextSize(b.c_str(), 0, 20);
+            ImColor color = ImColor(static_cast<int>(绘制.手持颜色[0] * 255 + 0.5), static_cast<int>(绘制.手持颜色[1] * 255 + 0.5), static_cast<int>(绘制.手持颜色[2] * 255 + 0.5), static_cast<int>(绘制.手持颜色[3] * 255 + 0.5));
+            绘制加粗文本(20, MIDDLE - (textSize.x / 2), 手持图片右下Y + 5, color, color, b.c_str());
+            */
+        }
+    } else {
+        // 计算名字背景框的位置和尺寸
+        float 名字背景框宽度 = 160.0f; // 名字背景框的宽度
+        float 名字背景框高度 = 27.0f;  // 名字背景框的高度
+        float 名字背景框左上X = MIDDLE - 名字背景框宽度 / 2.0f;
+        float 名字背景框左上Y = top - 42.0f;
+        
+        string b = GetHolGunItem(手持);
+        // b += " [" + to_string(子弹) + "/" + to_string(最大子弹) + "]";
+        auto textSize = ImGui::CalcTextSize(b.c_str(), 0, 20);
+        
+        // 计算手持文本位置（居中在名字背景框上方）
+        float 手持文本X = MIDDLE - (textSize.x / 2.0f);
+        float 手持文本Y = 名字背景框左上Y - 20.0f; // 在名字上方
+        
+        ImColor color = ImColor(static_cast<int>(绘制.手持颜色[0] * 255 + 0.5), static_cast<int>(绘制.手持颜色[1] * 255 + 0.5), static_cast<int>(绘制.手持颜色[2] * 255 + 0.5), static_cast<int>(绘制.手持颜色[3] * 255 + 0.5));
+        绘制加粗文本(20, 手持文本X, 手持文本Y, color, color, b.c_str());
+    }
+    string a = GetHol(状态);
+    auto Size = ImGui::CalcTextSize(a.c_str(), 0, 20);
+    float stateY = top - 90;  
+
+    if (绘制.按钮.自救救人) {
+        char 计算地址[256];
+        sprintf(计算地址, " % lx", 状态);
+        if (a == "救人") {
+            auto it = rescueTimers.find(计算地址);
+            if (it != rescueTimers.end()) {
+                auto elapsed = std::chrono::duration_cast < std::chrono::seconds > (
+                std::chrono::steady_clock::now() - it-> second
+                ).count();
+                if (elapsed > 6) {  
+                    rescueTimers[计算地址] = std::chrono::steady_clock::now();
+                }
+            }
+            else {
+                rescueTimers[计算地址] = std::chrono::steady_clock::now();
+            }
+            auto& timer = rescueTimers[计算地址];
+            int 剩余时间 = 10 - std::chrono::duration_cast < std::chrono::seconds > (
+            std::chrono::steady_clock::now() - timer
+            ).count();
+            if (剩余时间 >= 0) {
+                drawCountdownCircle(MIDDLE, top, 剩余时间, 10, ImColor(0, 255, 0, 255));
+            }
+        }
+        else {
+            auto it = rescueTimers.find(计算地址);
+            if (it != rescueTimers.end()) {
+                rescueTimers.erase(it);
+            }
+        }
+    }
+    if (绘制.按钮.手雷预警) {
+        char 计算地址[256];
+        sprintf(计算地址, " % lx", 状态);
+        if ((手持 == 602004 || 手持 == 9825004) && a == "捏雷") {
+            auto it = 捏雷Timers.find(计算地址);
+            if (it != 捏雷Timers.end()) {
+                auto elapsed = std::chrono::duration_cast < std::chrono::seconds > (
+                std::chrono::steady_clock::now() - it-> second
+                ).count();
+                if (elapsed > 6) {  
+                    捏雷Timers[计算地址] = std::chrono::steady_clock::now();
+                }
+            }
+            else {
+                捏雷Timers[计算地址] = std::chrono::steady_clock::now();
+            }
+            auto& timer = 捏雷Timers[计算地址];
+            int 剩余时间 = 7 - std::chrono::duration_cast < std::chrono::seconds > (
+            std::chrono::steady_clock::now() - timer
+            ).count();
+            if (剩余时间 >= 0) {
+                drawCountdownCircle(MIDDLE, top, 剩余时间, 7, ImColor(255, 165, 0, 255));
+            }
+        }
+        else {
+            auto it = 捏雷Timers.find(计算地址);
+            if (it != 捏雷Timers.end()) {
+                捏雷Timers.erase(it);
+            }
+        }
+    }
+    if (绘制.按钮.自救救人) {
+        char 计算地址[256];
+        sprintf(计算地址, " % lx", 状态);
+        if (a == "自救") {
+            auto it = 自救Timers.find(计算地址);
+            if (it != 自救Timers.end()) {
+                auto elapsed = std::chrono::duration_cast < std::chrono::seconds > (
+                std::chrono::steady_clock::now() - it-> second
+                ).count();
+                if (elapsed > 6) {  
+                    自救Timers[计算地址] = std::chrono::steady_clock::now();
+                }
+            }
+            else {
+                自救Timers[计算地址] = std::chrono::steady_clock::now();
+            }
+            auto& timer = 自救Timers[计算地址];
+            int 剩余时间 = 10 - std::chrono::duration_cast < std::chrono::seconds > (
+            std::chrono::steady_clock::now() - timer
+            ).count();
+            if (剩余时间 >= 0) {
+                drawCountdownCircle(MIDDLE, top, 剩余时间, 10, ImColor(0, 0, 255, 255));
+            }
+        }
+        else {
+            auto it = 自救Timers.find(计算地址);
+            if (it != 自救Timers.end()) {
+                自救Timers.erase(it);
+            }
+        }
+    }
+    绘制加粗文本(20, MIDDLE - (Size.x / 4), stateY, 颜色.白色, 颜色.白色, a.c_str());
+    更新救人倒计时();
+    更新捏雷倒计时();
+    更新自救倒计时();
+}
+void 绘图::绘制名字(string 名字, bool isboot, float 计时, bool 是否掐雷, char* 类名, int 阵营, int Bonecount){
+    // 计算名字文本的尺寸
+    string 名字显示文本 = (isboot && 阵营 != -1) ? "isBot" : 名字;
+    
+    if (strstr(类名, "BOSS") != 0) {
+        名字显示文本 += "[BOSS]";
+    }
+    if(是否掐雷) {
+        char buffer[50];
+        float 计时保留一位小数点 = static_cast<float>(计时);
+        std::sprintf(buffer, "%.1f", 计时保留一位小数点);
+        名字显示文本 += " 计时-[" + std::string(buffer) + "]";
+    }
+
+    auto 名字文本尺寸 = ImGui::CalcTextSize(名字显示文本.c_str());
+    
+    // 计算名字文本的X位置（在方框上方居中）
+    float 方框宽度 = right - left;
+    float 方框中心X = left + 方框宽度 / 2.0f;
+    float 名字位置X = 方框中心X - 名字文本尺寸.x / 2.0f;
+    
+    // 计算名字文本的Y位置（固定在方框上方）
+    float 名字位置Y = top - 38.0f; // 保持原来的Y位置
+    
+    // 绘制名字文本（不绘制背景框）
+    AddTextBold(ImGui::GetBackgroundDrawList(), 16, 名字位置X, 名字位置Y, 
+                ImColor(255, 255, 255, 255), ImColor(0, 0, 0, 255), 名字显示文本.c_str());
+    
+    // 绘制阵营数字
+    std::string 阵营文本 = std::to_string((int)阵营);
+    auto 阵营文本尺寸 = ImGui::CalcTextSize(阵营文本.c_str());
+    float 阵营位置X = 名字位置X - 阵营文本尺寸.x - 5.0f; // 在名字文本左侧5像素
+    float 阵营位置Y = 名字位置Y;
+    
+    AddTextBold(ImGui::GetBackgroundDrawList(), 18, 阵营位置X, 阵营位置Y, 
+                ImColor(255, 255, 255, 255), ImColor(0, 0, 0, 255), 阵营文本.c_str());
+}
+
+
+void 绘图::绘制方框(bool isboot) {
+    if (绘制.按钮.方框绘图 == 0) {
+        float 缩放比例 = 0.2f;  
+        float 方块边长比例 = 0.8f;  
+        float 方块长度 = (right - left) * 方块边长比例 * 缩放比例;
+        ImColor 方框color = ImColor(static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[0] * 255 + 0.5),
+        static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[1] * 255 + 0.5),
+        static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[2] * 255 + 0.5),
+        static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[3] * 255 + 0.5));
+        
+        ImGui::GetForegroundDrawList()->AddLine({left, top}, {left + 方块长度, top}, 方框color, 绘制.按钮.方框粗细);
+        ImGui::GetForegroundDrawList()->AddLine({right, top}, {right - 方块长度, top}, 方框color, 绘制.按钮.方框粗细);
+        ImGui::GetForegroundDrawList()->AddLine({left, bottom}, {left + 方块长度, bottom}, 方框color, 绘制.按钮.方框粗细);
+        ImGui::GetForegroundDrawList()->AddLine({right, bottom}, {right - 方块长度, bottom}, 方框color, 绘制.按钮.方框粗细);
+        ImGui::GetForegroundDrawList()->AddLine({left, top}, {left, top + 方块长度}, 方框color, 绘制.按钮.方框粗细);
+        ImGui::GetForegroundDrawList()->AddLine({right, top}, {right, top + 方块长度}, 方框color, 绘制.按钮.方框粗细);
+        ImGui::GetForegroundDrawList()->AddLine({left, bottom}, {left, bottom - 方块长度}, 方框color, 绘制.按钮.方框粗细);
+        ImGui::GetForegroundDrawList()->AddLine({right, bottom}, {right, bottom - 方块长度}, 方框color, 绘制.按钮.方框粗细);
+    } else if (绘制.按钮.方框绘图 == 1) {
+        ImGui::GetForegroundDrawList()->AddRect({left, top}, {right, bottom}, 
+            ImColor(static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[0] * 255 + 0.5),
+            static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[1] * 255 + 0.5),
+            static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[2] * 255 + 0.5),
+            static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[3] * 255 + 0.5)),
+            0, 0, 绘制.按钮.方框粗细);
+    } else if (绘制.按钮.方框绘图 == 2) {
+        ImGui::GetForegroundDrawList()->AddRect({left, top}, {right, bottom}, 
+            ImColor(static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[0] * 255 + 0.5),
+            static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[1] * 255 + 0.5),
+            static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[2] * 255 + 0.5),
+            static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[3] * 255 + 0.5)),
+            0, 0, 绘制.按钮.方框粗细);
+        
+        float backgroundAlpha = 0.3f;  
+        ImColor backgroundColor = ImColor(static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[0] * 255 + 0.5),
+        static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[1] * 255 + 0.5),
+        static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[2] * 255 + 0.5),
+        static_cast < int > (backgroundAlpha * 255));
+        
+        ImGui::GetForegroundDrawList()->AddRectFilled({left, top}, {right, bottom}, backgroundColor);
+    }
+}
+
+void 绘图::绘制距离(int 距离, int 队伍) {
+    string 距离文本 = to_string((int)距离) + " 米";
+    
+    // 计算文本宽度
+    float 字体大小 = 22.0f;
+    float 文本宽度 = 0.0f;
+    float 文本高度 = 0.0f;
+    
+    // 使用ImGui计算文本尺寸
+    ImVec2 文本尺寸 = ImGui::CalcTextSize(距离文本.c_str());
+    文本宽度 = 文本尺寸.x;
+    文本高度 = 文本尺寸.y;
+    
+    // 计算方框宽度
+    float 方框宽度 = right - left;
+    
+    // 计算方框中心X坐标
+    float 方框中心X = left + 方框宽度 / 2.0f;
+    
+    // 计算距离文本的X位置（在方框下方居中）
+    float 距离位置X = 方框中心X - 文本宽度 / 2.0f;
+    
+    // 计算距离文本的Y位置（固定在方框下方，与方框底部保持适当间距）
+    float 文本与方框间距 = 3.0f;  // 文本和方框之间的间距
+    float 距离位置Y = bottom + 文本与方框间距;
+    
+    // 注释掉原始的距离文本绘制代码，改用居中显示
+    // 绘制加粗文本(字体大小, 距离位置X, 距离位置Y,
+    //     ImColor(static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[0] * 255 + 0.5),
+    //     static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[1] * 255 + 0.5),
+    //     static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[2] * 255 + 0.5),
+    //     static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[3] * 255 + 0.5)),
+    //     ImColor(static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[0] * 255 + 0.5),
+    //     static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[1] * 255 + 0.5),
+    //     static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[2] * 255 + 0.5),
+    //     static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[3] * 255 + 0.5)),
+    //     距离文本.c_str());
+        
+    // 新的居中绘制代码
+    绘制加粗文本(字体大小, 距离位置X, 距离位置Y,
+        ImColor(static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[0] * 255 + 0.5),
+        static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[1] * 255 + 0.5),
+        static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[2] * 255 + 0.5),
+        static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[3] * 255 + 0.5)),
+        ImColor(static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[0] * 255 + 0.5),
+        static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[1] * 255 + 0.5),
+        static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[2] * 255 + 0.5),
+        static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].距离颜色[3] * 255 + 0.5)),
+        距离文本.c_str());
+}
+
+
+
+// void 绘图::绘制人数(int 人机, int 真人) {
+    /*
+    std::string str1;
+    std::string str2;
+    if (人机 == 0 && 真人==0) {
+    str2 += "0";
+    str1 += "0";
+    ImGui::GetForegroundDrawList()->AddImage(手持图片[10].textureId, {(PX), 70}, {(PX)+115, 125});
+    ImGui::GetForegroundDrawList()->AddImage(手持图片[11].textureId, {(PX)-120,70}, {(PX), 125});
+    } else {
+    str2 += std::to_string((int)人机);
+    str1 += std::to_string((int)真人);
+    ImGui::GetForegroundDrawList()->AddImage(手持图片[10].textureId, {(PX), 70}, {(PX)+115, 125});
+    ImGui::GetForegroundDrawList()->AddImage(手持图片[11].textureId, {(PX)-120,70}, {(PX), 125});
+    }
+    auto textSiz = ImGui::CalcTextSize(str2.c_str(),0,40);
+    ImGui::GetForegroundDrawList()->AddText(nullptr, 40, {PX - (textSiz.x / 2)+72, 96.0f-(textSiz.y / 2)}, 颜色.白色, str2.c_str());
+    auto textSize = ImGui::CalcTextSize(str1.c_str(),0,40);
+    ImGui::GetForegroundDrawList()->AddText(nullptr, 40, {PX - (textSize.x / 2)-30, 96.0f-(textSize.y / 2)}, 颜色.白色, str1.c_str());
+    */
+    /*
+    float rounding = 5.0f;  // 调整这个值以改变圆角的大小
+    ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(PX - 100-30, 90), ImVec2(PX - 100 + 95, 90 + 35-5), ImColor(77, 135, 185), rounding);
+    ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(PX - 100-30, 120), ImVec2(PX - 100 + 95, 120 + 60*1.5), ImColor(0, 0, 0, 112), rounding);
+    float newWidth = 130.0f; // 设置新的宽度
+    ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(PX + 5, 90), ImVec2(PX + 5 + newWidth, 90 + 35-5), ImColor(255, 77, 135), rounding);
+    ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(PX + 5, 120), ImVec2(PX + 5 + newWidth, 120 + 60*1.5), ImColor(0, 0, 0, 112), rounding);
+
+    // 绘制文本
+    ImGui::GetBackgroundDrawList()->AddText(ImVec2(PX - 90, 90), ImColor(255,255,255), "玩家");
+    ImGui::GetBackgroundDrawList()->AddText(ImVec2(PX + 90/2, 90), ImColor(255,255,255), "人机");
+
+    int 测试 = 20;
+    // 使用 snprintf 代替 sprintf
+
+    //单位数 真人78.5 人机60
+    //双位数 真人88.5 人机50
+    char content[32];
+    float 真人占位,人机占位;
+    if (真人 > 9) {
+      真人占位 = 88.5;
+    }else {
+      真人占位 = 78.5;
+    }
+    snprintf(content, sizeof(content), "%d", 真人);
+    ImGui::GetBackgroundDrawList()->AddText(NULL,55,ImVec2(PX - 真人占位, 140), ImColor(255,255,255), content);
+
+    if (人机 > 9) {
+      人机占位 = 50;
+    }else {
+      人机占位 = 60;
+    }
+    snprintf(content, sizeof(content), "%d", 人机);
+    ImGui::GetBackgroundDrawList()->AddText(NULL,55,ImVec2(PX + 人机占位, 140), ImColor(255,255,255), content);
+    */
+    // int 总人数 = 真人 + 人机;
+    // string a = std::to_string(总人数);
+    // auto Size = ImGui::CalcTextSize(a.c_str(), 0, 60);
+    // 绘制加粗文本(70, PX - (Size.x), 100, ImColor(0, 0, 0, 255), ImColor(0, 0, 0, 255), a.c_str()); // 前面为大小，后面为上下
+
+    // string a = std::to_string(真人);
+    // auto Size = ImGui::CalcTextSize(a.c_str(), 0, 60);
+    // 绘制加粗文本(70, PX - (Size.x) - 50, 100, ImColor(255, 0, 0, 255), ImColor(255, 0, 0, 255), a.c_str());  // 前面为大小，后面为上下
+
+    // a = "";
+    // a = std::to_string(人机);
+    // Size = ImGui::CalcTextSize(a.c_str(), 0, 60);
+    // 绘制加粗文本(70, PX - (Size.x) + 60, 100, ImColor(0, 255, 0, 255), ImColor(0, 255, 0, 255), a.c_str());  // 前面为大小，后面为上下
+    
+// }
+
+void 绘图::绘制人数(int 人机, int 真人) {
+    if(绘制.按钮.人数样式 == 0){
+        // 灵动岛样式绘制人数
+        float pxx = PX; // 使用绘图类中的屏幕中心X坐标
+        string play = to_string(真人); // 玩家数量
+        string bot = to_string(人机);   // 机器人数量
+
+        const float 基础高度 = 65.0f;
+        const float 基础宽度 = 120.0f; // 小球直径40的三倍
+        const float 圆角 = 基础高度 / 2;
+        const float 点击区域系数 = 1.5f;
+        static float 动画进度 = 0.0f;
+        static float 瞄准动画进度 = 0.0f;
+        int rawState = 绘制.自身数据.自身状态;
+    bool isCrouching = (rawState == 32 || (rawState & 32));
+    bool isProning = (rawState == 64 || (rawState & 64));
+    bool isJumping = (rawState == 144 || (rawState & 128));
+    bool isReloading = (rawState == 528 || (rawState & 512));
+    bool isRunning = (rawState == 19); // 严格匹配19
+    bool isWalking = (rawState == 17); // State 17 for Walking
+    bool isDriving = (rawState == 2097168 || (rawState & 2097152)); // State 2097168 for Driving
+    bool isPassenger = (rawState == 4194320 || (rawState & 4194304)); // State 4194320 for Passenger (0x400000 bit)
+    bool isClimbing = (rawState == 67108880 || (rawState & 67108864)); // State 67108880 for Climbing
+        static bool 动画进行中 = false;
+        // if(isRunning || 绘制.按钮.距离){
+        // 动画进行中 = true;
+        // } else {
+        // 动画进行中 = false;
+        // }
+        static bool 瞄准动画进行中 = false;
+        static float speed = 1.0f; // 默认动画速度
+        const float 动画速度 = 0.02f * speed;
+        const float 瞄准动画速度 = 0.05f * speed;
+        static bool 上次开关状态 = false;
+        static bool 开关 = false; // 灵动岛主开关状态
+        float 屏幕宽度 = 0.0f;     // 未使用，设为0
+        bool 正在瞄准 = false;    // 假设没有瞄准状态
+        bool 正在跳跃 = false;    // 假设没有跳跃状态
+
+        // 动画触发逻辑
+        if (开关 != 上次开关状态 || 正在瞄准 || 正在跳跃) {
+            动画进行中 = true;
+            动画进度 = 0.0f;
+            上次开关状态 = 开关;
+        }
+        static bool 上次瞄准状态 = false;
+        if (正在瞄准 != 上次瞄准状态) {
+            瞄准动画进行中 = true;
+            瞄准动画进度 = 0.0f;
+            上次瞄准状态 = 正在瞄准;
+        }
+
+        // 更新动画进度
+        if (动画进行中) {
+            动画进度 += 动画速度;
+            if (动画进度 >= 1.0f) {
+                动画进度 = 1.0f;
+                动画进行中 = false;
+            }
+        }
+        if (瞄准动画进行中) {
+            瞄准动画进度 += 瞄准动画速度;
+            if (瞄准动画进度 >= 1.0f) {
+                瞄准动画进度 = 1.0f;
+                瞄准动画进行中 = false;
+            }
+        }
+
+        // 弹性缩放计算
+        float 弹性缩放 = 1.0f;
+        if (动画进度 < 2.0f) {
+            float t = 动画进度;
+            弹性缩放 = 1.0f + 0.2f * sin(t * 3.14159f * 2.5f) * pow(1.0f - t, 1.5f);
+        }
+
+        // 瞄准缓动计算
+        float 瞄准缓动 = 0.0f;
+        if (正在瞄准) {
+            瞄准缓动 = 0.5f * (1.0f - cos(瞄准动画进度 * 3.14159f));
+        } else if (瞄准动画进度 < 1.0f) {
+            瞄准缓动 = 0.5f * (1.0f + cos(瞄准动画进度 * 3.14159f));
+        }
+
+        // 文本宽度计算
+        const float 主字体大小 = 45.0f;
+        float 文字宽度 = 0.0f;
+        bool 只有玩家 = (真人 > 1 && 人机 <= 1);
+        bool 只有机器人 = (人机 > 1 && 真人 <= 1);
+
+bool 当前活动状态 = isRunning || isWalking || isJumping || 正在瞄准 || isCrouching; // 组合您关心的状态
+
+static bool 上次活动状态 = false;
+if (当前活动状态 != 上次活动状态) {
+    动画进行中 = true;
+    动画进度 = 0.0f;
+    上次活动状态 = 当前活动状态;
+}
+
+        if (真人 == 0 && 人机 == 0) {
+            string zeroText = "@bizinb";
+            auto textSize_zero = ImGui::GetFont()->CalcTextSizeA(主字体大小, FLT_MAX, -1, zeroText.c_str());
+            文字宽度 = textSize_zero.x;
+        } else if (只有玩家) {
+            auto textSize_play = ImGui::GetFont()->CalcTextSizeA(主字体大小, FLT_MAX, -1, play.c_str());
+            文字宽度 = textSize_play.x;
+        } else if (只有机器人) {
+            auto textSize_bot = ImGui::GetFont()->CalcTextSizeA(主字体大小, FLT_MAX, -1, bot.c_str());
+            文字宽度 = textSize_bot.x;
+        } else {
+            auto textSize_play = ImGui::GetFont()->CalcTextSizeA(主字体大小, FLT_MAX, -1, play.c_str());
+            auto textSize_bot = ImGui::GetFont()->CalcTextSizeA(主字体大小, FLT_MAX, -1, bot.c_str());
+            文字宽度 = textSize_play.x + textSize_bot.x + 40;
+        }
+
+        // 矩形尺寸计算 - 关键修改：向右加长
+        // 获取小球背景的右侧位置
+        const float 小球背景宽度 = 65.0f;
+        const float 小球背景高度 = 65.0f;
+        const float 小球间隔 = 15.0f;
+        
+        // 计算小球背景位置（保持不变）
+        ImVec2 小球背景位置 = ImVec2(
+            pxx - 小球背景宽度 - 小球间隔,  // 小球位置相对居中位置左移
+            35);
+        
+        // 矩形左侧从小球右侧开始，向右延伸
+        float 矩形左侧 = 小球背景位置.x + 小球背景宽度 * 弹性缩放 + 小球间隔/2;
+        
+        // 根据文本宽度计算矩形宽度，增加额外空间使矩形更长
+        float 矩形宽度 = max(文字宽度 + 100.0f, 基础宽度) * 弹性缩放; // 增加边距至100像素
+        矩形宽度 += (屏幕宽度 * 0.4f) * 瞄准缓动; // 屏幕宽度为0，此项不影响
+        
+        // 动态高度（保持不变）
+        float 动态高度 = 基础高度 * 弹性缩放;
+        if (正在跳跃) {
+            矩形宽度 *= 0.7f;
+            动态高度 *= 1.3f;
+        }
+        
+        // 矩形右侧位置
+        float 矩形右侧 = 矩形左侧 + 矩形宽度;
+
+        // 透明度设置
+        int 透明度 = 255; // 默认不透明
+        int 透明调节 = (透明度 > 120) ? 透明度 : 120;
+        if (透明度 < 10) 透明调节 = 0;
+
+        // 绘制主矩形背景 - 位置改为从小球右侧开始
+        ImGui::GetForegroundDrawList()->AddRectFilled(
+            {矩形左侧, 35},
+            {矩形右侧, 35 + 动态高度},
+            ImColor(0, 0, 0, 透明调节),
+            圆角, ImDrawFlags_RoundCornersAll);
+
+        // 绘制小球背景和按钮
+        const float circleRadius = 20.0f;
+        
+        // 小球背景位置（保持不变）
+        ImGui::GetForegroundDrawList()->AddRectFilled(
+            小球背景位置,
+            ImVec2(小球背景位置.x + 小球背景宽度 * 弹性缩放, 小球背景位置.y + 小球背景高度 * 弹性缩放),
+            ImColor(0, 0, 0, 透明调节),
+            圆角, ImDrawFlags_RoundCornersAll);
+        ImGui::GetForegroundDrawList()->AddRect(
+            小球背景位置,
+            ImVec2(小球背景位置.x + 小球背景宽度 * 弹性缩放, 小球背景位置.y + 小球背景高度 * 弹性缩放),
+            ImColor(0, 0, 0, 透明调节),
+            圆角, ImDrawFlags_RoundCornersAll, 2.3f);
+
+        ImVec2 circlePos = ImVec2(
+            小球背景位置.x + (小球背景宽度 * 弹性缩放) / 2,
+            小球背景位置.y + (小球背景高度 * 弹性缩放) / 2);
+        static bool 录屏 = false; // 录屏状态
+        static float timerStartTime = 0.0f;
+        static bool isTimerRunning = false;
+        static int 录屏时长 = 10; // 默认录屏时长10秒
+        ImColor circleColor = 录屏 ? ImColor(255, 0, 0, 255) : ImColor(255, 255, 255, 255);
+        ImGui::GetForegroundDrawList()->AddCircle(
+            circlePos,
+            circleRadius * 弹性缩放 + 3.0f,
+            录屏 ? ImColor(255, 0, 0, 255) : ImColor(255, 255, 255, 255),
+            100,
+            1.5f);
+        ImGui::GetForegroundDrawList()->AddCircleFilled(
+            circlePos,
+            circleRadius * 弹性缩放,
+            circleColor,
+            100);
+
+        // 绘制录屏计时文本
+        string timerText = 录屏 ? std::to_string(static_cast<int>(ImGui::GetTime() - timerStartTime)) : "";
+        const float 计时器字体大小 = 35.0f;
+        auto textSize_timer = ImGui::GetFont()->CalcTextSizeA(计时器字体大小, FLT_MAX, -1, timerText.c_str());
+        ImGui::GetForegroundDrawList()->AddText(
+            NULL,
+            计时器字体大小,
+            ImVec2(circlePos.x - textSize_timer.x / 2, circlePos.y - textSize_timer.y / 2),
+            录屏 ? ImColor(255, 255, 255, 255) : ImColor(255, 0, 0, 255),
+            timerText.c_str());
+
+        // 小球按钮交互区域（保持不变）
+        ImVec2 circleMin = ImVec2(circlePos.x - circleRadius * 点击区域系数, circlePos.y - circleRadius * 点击区域系数);
+        ImVec2 circleMax = ImVec2(circlePos.x + circleRadius * 点击区域系数, circlePos.y + circleRadius * 点击区域系数);
+        ImGui::SetNextWindowPos(circleMin);
+        ImGui::SetNextWindowSize(ImVec2(circleRadius * 2 * 点击区域系数, circleRadius * 2 * 点击区域系数));
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        ImGui::Begin("录屏小球点击区域", NULL,
+                     ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        if (ImGui::Button("", ImVec2(circleMax.x - circleMin.x, circleMax.y - circleMin.y))) {
+            录屏 = !录屏;
+            if (录屏) {
+                time_t now = time(0);
+                tm* localtm = localtime(&now);
+                char timeStr[80];
+                strftime(timeStr, sizeof(timeStr), "%Y%m%d_%H%M%S", localtm);
+                string fileName = "/sdcard/录制_" + string(timeStr) + ".mp4";
+                string command = "screenrecord --time-limit " + to_string(录屏时长) + " " + fileName + " &";
+                system(command.c_str());
+                timerStartTime = static_cast<float>(ImGui::GetTime());
+                isTimerRunning = true;
+            } else {
+                system("pkill -l SIGINT screenrecord");
+                isTimerRunning = false;
+            }
+        }
+        ImGui::End();
+        ImGui::PopStyleColor(5);
+
+        // 录屏计时结束处理
+        if (isTimerRunning && (ImGui::GetTime() - timerStartTime >= 录屏时长)) {
+            isTimerRunning = false;
+            录屏 = false;
+        }
+
+        // 绘制人数文本 - 位置调整为在矩形内
+        bool 人数位置条件 = true;
+        if (人数位置条件) {
+            if (真人 == 0 && 人机 == 0) {
+                string zeroText = "@bizinb";
+                auto textSize_zero = ImGui::GetFont()->CalcTextSizeA(主字体大小, FLT_MAX, -1, zeroText.c_str());
+                // 在矩形内居中显示
+                float 矩形中心X = 矩形左侧 + 矩形宽度 / 2;
+                float centerX = 矩形中心X - textSize_zero.x / 2;
+                float centerY = 35 + 动态高度 / 2 - (textSize_zero.y / 2);
+                ImGui::GetForegroundDrawList()->AddText(
+                    NULL, 主字体大小,
+                    ImVec2(centerX, centerY),
+                    ImColor(30, 144, 255), zeroText.c_str());
+            } else {
+                float 矩形中心X = 矩形左侧 + 矩形宽度 / 2;
+                
+                if (只有玩家) {
+                    auto textSize_play = ImGui::GetFont()->CalcTextSizeA(主字体大小, FLT_MAX, -1, play.c_str());
+                    float centerX = 矩形中心X - textSize_play.x / 2;
+                    ImGui::GetForegroundDrawList()->AddText(
+                        NULL, 主字体大小,
+                        ImVec2(centerX, 35 + 动态高度 / 2 - textSize_play.y / 2),
+                        ImColor(255, 0, 0, 255), play.c_str());
+                } else if (只有机器人) {
+                    auto textSize_bot = ImGui::GetFont()->CalcTextSizeA(主字体大小, FLT_MAX, -1, bot.c_str());
+                    float centerX = 矩形中心X - textSize_bot.x / 2;
+                    ImGui::GetForegroundDrawList()->AddText(
+                        NULL, 主字体大小,
+                        ImVec2(centerX, 35 + 动态高度 / 2 - textSize_bot.y / 2),
+                        ImColor(0, 255, 0, 240), bot.c_str());
+                } else {
+                    auto textSize_play = ImGui::GetFont()->CalcTextSizeA(主字体大小, FLT_MAX, -1, play.c_str());
+                    auto textSize_bot = ImGui::GetFont()->CalcTextSizeA(主字体大小, FLT_MAX, -1, bot.c_str());
+                    // 在矩形内左右分布
+                    float 左文本X = 矩形左侧 + 30;
+                    float 右文本X = 矩形右侧 - textSize_bot.x - 30;
+                    
+                    ImGui::GetForegroundDrawList()->AddText(
+                        NULL, 主字体大小,
+                        ImVec2(左文本X, 35 + 动态高度 / 2 - textSize_play.y / 2),
+                        ImColor(255, 0, 0, 255), play.c_str());
+                    ImGui::GetForegroundDrawList()->AddText(
+                        NULL, 主字体大小,
+                        ImVec2(右文本X, 35 + 动态高度 / 2 - textSize_bot.y / 2),
+                        ImColor(0, 255, 0, 240), bot.c_str());
+                }
+            }
+        } else {
+            string bynh = "点我关闭";
+            auto textSize_bynh = ImGui::GetFont()->CalcTextSizeA(主字体大小, FLT_MAX, -1, bynh.c_str());
+            float 矩形中心X = 矩形左侧 + 矩形宽度 / 2;
+            float centerX = 矩形中心X - textSize_bynh.x / 2;
+            float centerY = 35 + 动态高度 / 2 - (textSize_bynh.y / 2);
+            ImGui::GetForegroundDrawList()->AddText(
+                NULL, 主字体大小,
+                ImVec2(centerX, centerY),
+                ImColor(30, 144, 255), bynh.c_str());
+        }
+
+        // 主矩形点击交互区域 - 位置调整为新的矩形区域
+        ImVec2 childWindowSize = ImVec2(矩形宽度, 动态高度);
+        ImVec2 childWindowPos = ImVec2(矩形左侧, 35);
+        ImGui::SetNextWindowPos(childWindowPos);
+        ImGui::SetNextWindowSize(childWindowSize);
+        ImVec4 transparentColor = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, transparentColor);
+        ImGui::PushStyleColor(ImGuiCol_Border, transparentColor);
+        ImGui::PushStyleColor(ImGuiCol_BorderShadow, transparentColor);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 圆角);
+        ImGui::Begin("灵动岛点击事件", NULL,
+                     ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        if (ImGui::Button("", childWindowSize)) {
+            悬浮窗 = !悬浮窗;
+        }
+        ImGui::End();
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor(6);
+    } else {
+        // // 保持原有的样式2代码不变
+        // string a = std::to_string(真人);
+        // auto Size = ImGui::CalcTextSize(a.c_str(), 0, 60);
+        // 绘制加粗文本(70, PX - (Size.x) - 50, 100, ImColor(255, 0, 0, 255), ImColor(255, 0, 0, 255), a.c_str());
+
+        // a = "";
+        // a = std::to_string(人机);
+        // Size = ImGui::CalcTextSize(a.c_str(), 0, 60);
+        // 绘制加粗文本(70, PX - (Size.x) + 60, 100, ImColor(0, 255, 0, 255), ImColor(0, 255, 0, 255), a.c_str());
+        std::string 显示文本;
+        if (真人 == 0 && 人机 == 0) {
+            显示文本 = "安全";
+        } else {
+            显示文本 = std::to_string(真人 + 人机);
+        }
+        
+        // 2. 计算文本尺寸，用于水平居中
+        ImVec2 textSize = ImGui::CalcTextSize(显示文本.c_str());
+        
+        // 3. 计算绘制位置
+        //    水平：屏幕中心(PX) - 文本宽度的一半
+        //    垂直：屏幕中心(PY) + 200像素
+        float 文本位置X = PX - (textSize.x / 2);
+        float 文本位置Y = 80;
+        
+        // 4. 使用指定颜色(230, 220, 80, 255)绘制加粗文本
+        ImColor 目标颜色 = ImColor(225, 215, 75, 255);
+        绘制加粗文本(70, 文本位置X, 文本位置Y, 目标颜色, 目标颜色, 显示文本.c_str());
+    }
+}
+/*
+void 绘图::绘制距离(int 距离, int 队伍) {
+    char DisData[24];
+    sprintf(DisData, "[%d m]", (int)距离);
+    
+    // 计算文本尺寸以实现水平居中
+    ImVec2 textSize = ImGui::CalcTextSize(DisData);
+    
+    // 将文本固定在方框正下方
+    // 水平居中：MIDDLE - textSize.x / 2
+    // 垂直位置：方框底部 (bottom) 向下偏移5像素
+    float textPosX = MIDDLE - textSize.x / 2;
+    float textPosY = bottom + 5;
+    
+    // 调用加粗文本绘制函数
+    AddTextBold(ImGui::GetBackgroundDrawList(),
+                18,
+                textPosX,
+                textPosY,
+                ImColor(255, 255, 0),
+                ImColor(0, 0, 0, 255),
+                DisData);
+}
+*/
+
+void 绘图::绘制射线(骨骼数据& 骨骼) {
+    ImGui::GetForegroundDrawList()->AddLine({PX, 0}, {骨骼.Head.X, top - 70}, ImColor(static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].射线颜色[0] * 255 + 0.5), static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].射线颜色[1] * 255 + 0.5), static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].射线颜色[2] * 255 + 0.5), static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].射线颜色[3] * 255 + 0.5)), 绘制.按钮.射线粗细);  // 使用白色，并增加线宽
+}
+
+void 绘图::头甲包显示(骨骼数据& t_骨骼数据, int 敌人头, int 敌人甲, int 敌人包, D4DVector& t_屏幕坐标) 
+{
+    float top = t_骨骼数据.Pelvis.Y - ((t_骨骼数据.Head.X != 0) ? (t_骨骼数据.Pelvis.Y - t_骨骼数据.Head.Y) : (t_骨骼数据.Pelvis.Y - t_骨骼数据.Chest.Y)) - t_屏幕坐标.Z / 5;
+
+    ImVec2 screenSize = ImGui::GetIO().DisplaySize;
+    auto* drawList = ImGui::GetForegroundDrawList();
+
+    const float 血条顶部偏移 = 30.0f;
+    float 名字标签顶部 = top - 血条顶部偏移 - 2.0f - 22.0f;
+
+    std::string 穿戴 = "头:" + tou(敌人头) + "  \n";
+    穿戴 += "甲:" + jia(敌人甲) + "  \n";
+    穿戴 += "包:" + bao(敌人包);
+
+    float 穿戴信息顶部 = 名字标签顶部 - ImGui::CalcTextSize(穿戴.c_str()).y - 2.0f;
+    float 穿戴信息水平位置 = MIDDLE - ImGui::CalcTextSize(穿戴.c_str()).x / 2;
+
+    drawList->AddText(nullptr, 16.0f, {穿戴信息水平位置, 穿戴信息顶部}, IM_COL32(255, 255, 255, 255), 穿戴.c_str());
+}
+/*
+void 绘图::绘制血量(float 最大血量, float 当前血量,骨骼数据 &骨骼) {
+  float 血量 = 当前血量/最大血量*100;
+      // ImGui::GetBackgroundDrawList()->AddRectFilled({MIDDLE - 90, top - 16}, {MIDDLE - 102 + (2 *血量), top - 11}, ImColor(255, 255, 0, 200), 1, 0);
+      string duo;
+        duo += to_string((int)当前血量);
+        auto textSize = ImGui::CalcTextSize(duo.c_str());
+        float 方框高度 = bottom - top;
+        float 方框宽度 = right - left;
+        const float 血量条宽度 = 6.0f;  
+        const float 偏移量 = 2.0f;  
+        float 血量比例 = 当前血量 / 最大血量;
+        float 血量高度 = 方框高度 * 血量比例;
+    const ImVec2 背景左上 = { right + 偏移量, top };
+    const ImVec2 背景右下 = { right + 偏移量 + 血量条宽度, bottom };
+    const ImVec2 血量左上 = { right + 偏移量, bottom - 血量高度 };
+    const ImVec2 血量右下 = { right + 偏移量 + 血量条宽度, bottom };
+        const ImU32 背景颜色 = ImColor(255, 255, 255, 100);
+        ImColor fillColor = ImColor(static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].血量颜色[0] * 255 + 0.5), static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].血量颜色[1] * 255 + 0.5), static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].血量颜色[2] * 255 + 0.5), static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].血量颜色[3] * 255 + 0.5));
+        fillColor.Value.w = 0.5f;
+        ImColor 竖版health = (当前血量 <= 100.0f && 当前血量 >= 85.0f) ? ImColor(0, 255, 0, 255) :
+        (当前血量 <= 85.0f && 当前血量 >= 70.0f) ? ImColor(190, 255, 0, 255) :
+        (当前血量 <= 70.0f && 当前血量 >= 55.0f) ? ImColor(230, 255, 0, 255) :
+        (当前血量 <= 55.0f && 当前血量 >= 40.0f) ? ImColor(255, 170, 0, 255) :
+        (当前血量 <= 40.0f && 当前血量 >= 25.0f) ? ImColor(255, 130, 0, 255) :
+        (当前血量 <= 25.0f && 当前血量 >= 10.0f) ? ImColor(255, 90, 0, 255) :
+        (当前血量 <= 10.0f && 当前血量 >= 0.0f) ? ImColor(255, 0, 0, 255) :
+        ImColor(0, 0, 0, 255);  
+            ImGui::GetForegroundDrawList()-> AddRectFilled(背景左上, 背景右下, 背景颜色, 2.0f);
+            // ImGui::GetForegroundDrawList()-> AddRectFilled(血量左上, 血量右下, GetRandomColorByIdd(队伍), 2.0f);
+            ImGui::GetForegroundDrawList()->AddRectFilled(血量左上, 血量右下, 竖版health, 2.0f);
+// 绘制血条边框
+            ImGui::GetForegroundDrawList()-> AddRect(背景左上, 背景右下, ImColor(0, 0, 0, 200), 2.0f, 0, 1.5);
+    ImVec2 文字位置 = { 血量右下.x + 3.0f, bottom - 血量高度 - textSize.y / 2 };
+        ImGui::GetForegroundDrawList()-> AddText(文字位置, 竖版health , duo.c_str());
+  
+  */
+/*
+  if(绘制.按钮.血条样式==0)
+  {
+      // ImGui::GetBackgroundDrawList()->AddRectFilled({MIDDLE - 90, top - 16}, {MIDDLE - 102 + (2 *血量), top - 11}, ImColor(255, 255, 0, 200), 1, 0);
+      string duo;
+        duo += to_string((int)当前血量);
+        auto textSize = ImGui::CalcTextSize(duo.c_str());
+        float 方框高度 = bottom - top;
+        float 方框宽度 = right - left;
+        const float 血量条宽度 = 6.0f;  
+        const float 偏移量 = 2.0f;  
+        float 血量比例 = 当前血量 / 最大血量;
+        float 血量高度 = 方框高度 * 血量比例;
+    const ImVec2 背景左上 = { right + 偏移量, top };
+    const ImVec2 背景右下 = { right + 偏移量 + 血量条宽度, bottom };
+    const ImVec2 血量左上 = { right + 偏移量, bottom - 血量高度 };
+    const ImVec2 血量右下 = { right + 偏移量 + 血量条宽度, bottom };
+        const ImU32 背景颜色 = ImColor(255, 255, 255, 100);
+        ImColor fillColor = ImColor(static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].血量颜色[0] * 255 + 0.5), static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].血量颜色[1] * 255 + 0.5), static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].血量颜色[2] * 255 + 0.5), static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].血量颜色[3] * 255 + 0.5));
+        fillColor.Value.w = 0.5f;
+        ImColor 竖版health = (当前血量 <= 100.0f && 当前血量 >= 85.0f) ? ImColor(0, 255, 0, 255) :
+        (当前血量 <= 85.0f && 当前血量 >= 70.0f) ? ImColor(190, 255, 0, 255) :
+        (当前血量 <= 70.0f && 当前血量 >= 55.0f) ? ImColor(230, 255, 0, 255) :
+        (当前血量 <= 55.0f && 当前血量 >= 40.0f) ? ImColor(255, 170, 0, 255) :
+        (当前血量 <= 40.0f && 当前血量 >= 25.0f) ? ImColor(255, 130, 0, 255) :
+        (当前血量 <= 25.0f && 当前血量 >= 10.0f) ? ImColor(255, 90, 0, 255) :
+        (当前血量 <= 10.0f && 当前血量 >= 0.0f) ? ImColor(255, 0, 0, 255) :
+        ImColor(0, 0, 0, 255);  
+            ImGui::GetForegroundDrawList()-> AddRectFilled(背景左上, 背景右下, 背景颜色, 2.0f);
+            // ImGui::GetForegroundDrawList()-> AddRectFilled(血量左上, 血量右下, GetRandomColorByIdd(队伍), 2.0f);
+            ImGui::GetForegroundDrawList()->AddRectFilled(血量左上, 血量右下, 竖版health, 2.0f);
+// 绘制血条边框
+            ImGui::GetForegroundDrawList()-> AddRect(背景左上, 背景右下, ImColor(0, 0, 0, 200), 2.0f, 0, 1.5);
+    ImVec2 文字位置 = { 血量右下.x + 3.0f, bottom - 血量高度 - textSize.y / 2 };
+        ImGui::GetForegroundDrawList()-> AddText(文字位置, 竖版health , duo.c_str());
+  } else if(绘制.按钮.血条样式==1)
+  {
+          std::string duo;
+                            duo += std::to_string((int)血量);
+                            duo += "%";
+                            auto textSize = ImGui::CalcTextSize(duo.c_str(), 0, 25);
+                            AddTextBold(ImGui::GetBackgroundDrawList(),25,骨骼.Head.X - ((textSize.x / 2) / 2), top - 68, ImColor(255, 255, 0, 200),ImColor(0,0,0,255), duo.c_str());
+  } else if(绘制.按钮.血条样式==2){
+      
+      
+      
+          std::string duo;
+                            duo += std::to_string((int)血量);
+                            auto textSize = ImGui::CalcTextSize(duo.c_str(), 0, 25);
+                            float aa =血量*3.6;
+                            ImGui::GetBackgroundDrawList()->AddCircleArc({骨骼.Head.X, top - 160},20, {0, aa}, ImColor(0, 170, 0, 190),  0, 5);
+                            ImGui::GetBackgroundDrawList()->AddText(NULL,20,{骨骼.Head.X - ((textSize.x / 2) / 2), top - 170}, ImColor(0, 170, 0, 190), duo.c_str());
+  
+  
+  
+  } else if(绘制.按钮.血条样式==3){
+string duo;
+        duo += to_string((int)当前血量);
+        auto textSize = ImGui::CalcTextSize(duo.c_str(), 0, 25);
+        float 血量 = 当前血量/最大血量*100;
+        const float 血量条宽度 = 1.13f * 血量;
+        const float 垂直偏移 = 6.0f; 
+        const ImVec2 背景左上 = {MIDDLE - 62, top - 44 + 垂直偏移};
+        const ImVec2 背景右下 = {MIDDLE + 52, top - 22 + 垂直偏移};
+        const ImVec2 血量左上 = {MIDDLE - 62, top - 44 + 垂直偏移};
+        const ImVec2 血量右下 = {MIDDLE - 62 + 血量条宽度, top - 22 + 垂直偏移};
+        const ImU32 背景颜色 = ImColor(255, 255, 255, 100);
+        int teamID = 绘制.对象信息.敌人信息.队伍;
+        bool isBot = 绘制.对象信息.敌人信息.isboot;
+        ImColor fillColor;
+        if(isBot) {
+            fillColor = ImColor(255, 255, 255, 80); 
+        } else {
+            switch(teamID % 7) {
+                case 0: fillColor = ImColor(0, 255, 0, 80); break;   
+                case 1: fillColor = ImColor(0, 0, 255, 80); break;   
+                case 2: fillColor = ImColor(255, 0, 255, 80); break; 
+                case 3: fillColor = ImColor(255, 165, 0, 80); break; 
+                case 4: fillColor = ImColor(0, 255, 255, 80); break; 
+                case 5: fillColor = ImColor(255, 192, 203, 80); break; 
+                default: fillColor = ImColor(255, 255, 0, 80); break; 
+            }
+        }
+        ImGui::GetForegroundDrawList()->AddRectFilled(背景左上, 背景右下, 背景颜色, 30);
+        ImGui::GetForegroundDrawList()->AddRectFilled(血量左上, 血量右下, fillColor, 30);
+        ImGui::GetForegroundDrawList()->AddRect(背景左上, 背景右下, ImColor(0, 0, 0, 200), 30, 0, 1.5);
+        ImVec2 topLeft = 背景左上;
+        ImVec2 bottomRight = 背景右下;
+        float rectWidth = bottomRight.x - topLeft.x;
+        float segmentWidth = rectWidth / 5;
+}
+*/
+void 绘图::绘制血量(float 最大血量, float 当前血量,骨骼数据 &骨骼) {
+  float 血量 = 当前血量/最大血量*100;
+  
+  if(绘制.按钮.血条样式==0)
+  {
+      // ImGui::GetBackgroundDrawList()->AddRectFilled({MIDDLE - 90, top - 16}, {MIDDLE - 102 + (2 *血量), top - 11}, ImColor(255, 255, 0, 200), 1, 0);
+      string duo;
+        duo += to_string((int)当前血量);
+        auto textSize = ImGui::CalcTextSize(duo.c_str());
+        float 方框高度 = bottom - top;
+        float 方框宽度 = right - left;
+        const float 血量条宽度 = 6.0f;  
+        const float 偏移量 = 2.0f;  
+        float 血量比例 = 当前血量 / 最大血量;
+        float 血量高度 = 方框高度 * 血量比例;
+    const ImVec2 背景左上 = { right + 偏移量, top };
+    const ImVec2 背景右下 = { right + 偏移量 + 血量条宽度, bottom };
+    const ImVec2 血量左上 = { right + 偏移量, bottom - 血量高度 };
+    const ImVec2 血量右下 = { right + 偏移量 + 血量条宽度, bottom };
+        const ImU32 背景颜色 = ImColor(255, 255, 255, 100);
+        ImColor fillColor = ImColor(static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].血量颜色[0] * 255 + 0.5), static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].血量颜色[1] * 255 + 0.5), static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].血量颜色[2] * 255 + 0.5), static_cast < int > (绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].血量颜色[3] * 255 + 0.5));
+        fillColor.Value.w = 0.5f;
+        ImColor 竖版health = (当前血量 <= 100.0f && 当前血量 >= 85.0f) ? ImColor(0, 255, 0, 255) :
+        (当前血量 <= 85.0f && 当前血量 >= 70.0f) ? ImColor(190, 255, 0, 255) :
+        (当前血量 <= 70.0f && 当前血量 >= 55.0f) ? ImColor(230, 255, 0, 255) :
+        (当前血量 <= 55.0f && 当前血量 >= 40.0f) ? ImColor(255, 170, 0, 255) :
+        (当前血量 <= 40.0f && 当前血量 >= 25.0f) ? ImColor(255, 130, 0, 255) :
+        (当前血量 <= 25.0f && 当前血量 >= 10.0f) ? ImColor(255, 90, 0, 255) :
+        (当前血量 <= 10.0f && 当前血量 >= 0.0f) ? ImColor(255, 0, 0, 255) :
+        ImColor(0, 0, 0, 255);  
+            ImGui::GetForegroundDrawList()-> AddRectFilled(背景左上, 背景右下, 背景颜色, 2.0f);
+            // ImGui::GetForegroundDrawList()-> AddRectFilled(血量左上, 血量右下, GetRandomColorByIdd(队伍), 2.0f);
+            ImGui::GetForegroundDrawList()->AddRectFilled(血量左上, 血量右下, 竖版health, 2.0f);
+// 绘制血条边框
+            ImGui::GetForegroundDrawList()-> AddRect(背景左上, 背景右下, ImColor(0, 0, 0, 200), 2.0f, 0, 1.5);
+    ImVec2 文字位置 = { 血量右下.x + 3.0f, bottom - 血量高度 - textSize.y / 2 };
+        ImGui::GetForegroundDrawList()-> AddText(文字位置, 竖版health , duo.c_str());
+  } else if(绘制.按钮.血条样式==1)
+  {
+          std::string duo;
+                            duo += std::to_string((int)血量);
+                            duo += "%";
+                            auto textSize = ImGui::CalcTextSize(duo.c_str(), 0, 25);
+                            AddTextBold(ImGui::GetBackgroundDrawList(),25,骨骼.Head.X - ((textSize.x / 2) / 2), top - 68, ImColor(255, 255, 0, 200),ImColor(0,0,0,255), duo.c_str());
+  } else if(绘制.按钮.血条样式==2){
+      
+      
+      
+          std::string duo;
+                            duo += std::to_string((int)血量);
+                            auto textSize = ImGui::CalcTextSize(duo.c_str(), 0, 25);
+                            float aa =血量*3.6;
+                            ImGui::GetBackgroundDrawList()->AddCircleArc({骨骼.Head.X, top - 160},20, {0, aa}, ImColor(0, 170, 0, 190),  0, 5);
+                            ImGui::GetBackgroundDrawList()->AddText(NULL,20,{骨骼.Head.X - ((textSize.x / 2) / 2), top - 170}, ImColor(0, 170, 0, 190), duo.c_str());
+  
+  
+  
+  } else if(绘制.按钮.血条样式==3){
+string duo;
+        duo += to_string((int)当前血量);
+        auto textSize = ImGui::CalcTextSize(duo.c_str(), 0, 25);
+        float 血量 = 当前血量/最大血量*100;
+        const float 血量条宽度 = 1.13f * 血量;
+        const float 垂直偏移 = 6.0f; 
+        const ImVec2 背景左上 = {MIDDLE - 62, top - 44 + 垂直偏移};
+        const ImVec2 背景右下 = {MIDDLE + 52, top - 22 + 垂直偏移};
+        const ImVec2 血量左上 = {MIDDLE - 62, top - 44 + 垂直偏移};
+        const ImVec2 血量右下 = {MIDDLE - 62 + 血量条宽度, top - 22 + 垂直偏移};
+        const ImU32 背景颜色 = ImColor(255, 255, 255, 100);
+        int teamID = 绘制.对象信息.敌人信息.队伍;
+        bool isBot = 绘制.对象信息.敌人信息.isboot;
+        ImColor fillColor;
+        if(isBot) {
+            fillColor = ImColor(255, 255, 255, 80); 
+        } else {
+            switch(teamID % 7) {
+                case 0: fillColor = ImColor(0, 255, 0, 80); break;   
+                case 1: fillColor = ImColor(0, 0, 255, 80); break;   
+                case 2: fillColor = ImColor(255, 0, 255, 80); break; 
+                case 3: fillColor = ImColor(255, 165, 0, 80); break; 
+                case 4: fillColor = ImColor(0, 255, 255, 80); break; 
+                case 5: fillColor = ImColor(255, 192, 203, 80); break; 
+                default: fillColor = ImColor(255, 255, 0, 80); break; 
+            }
+        }
+        ImGui::GetForegroundDrawList()->AddRectFilled(背景左上, 背景右下, 背景颜色, 30);
+        ImGui::GetForegroundDrawList()->AddRectFilled(血量左上, 血量右下, fillColor, 30);
+        ImGui::GetForegroundDrawList()->AddRect(背景左上, 背景右下, ImColor(0, 0, 0, 200), 30, 0, 1.5);
+        ImVec2 topLeft = 背景左上;
+        ImVec2 bottomRight = 背景右下;
+        float rectWidth = bottomRight.x - topLeft.x;
+        float segmentWidth = rectWidth / 5;
+    } if(绘制.按钮.血条绘图== 4) 
+{
+    if (当前血量 > 0) {
+        float x = MIDDLE; 
+        float y = top - -10; 
+        auto textSize_id = ImGui::GetFont()->CalcTextSizeA(23, FLT_MAX, -1, 
+                            to_string(绘制.对象信息.敌人信息.队伍).c_str(), NULL, NULL);
+        ImGui::GetBackgroundDrawList()->AddCircleFilled(
+            {x - 67.5f, y - 30}, 
+            15,  
+            ImColor(0, 0, 255, 255),  
+            0);
+        ImColor nameBaseFillColor;
+        switch(绘制.对象信息.敌人信息.队伍 % 7) {
+            case 0: nameBaseFillColor = ImColor(0, 255, 0, 130); break;   
+            case 1: nameBaseFillColor = ImColor(0, 0, 255, 130); break;   
+            case 2: nameBaseFillColor = ImColor(255, 0, 255, 130); break; 
+            case 3: nameBaseFillColor = ImColor(255, 165, 0, 130); break; 
+            case 4: nameBaseFillColor = ImColor(0, 255, 255, 130); break; 
+            case 5: nameBaseFillColor = ImColor(255, 192, 203, 130); break; 
+            default: nameBaseFillColor = ImColor(255, 255, 0, 130); break; 
+        }
+        ImColor nameFillColor = ImColor(
+            nameBaseFillColor.Value.x,
+            nameBaseFillColor.Value.y,
+            nameBaseFillColor.Value.z,
+            nameBaseFillColor.Value.w * (当前血量 / 100.0f) 
+        );
+        float nameBgWidth = 120.0f * (当前血量 / 100.0f); 
+        ImGui::GetBackgroundDrawList()->AddRectFilled(
+            {x - 50, y - 43},  
+            {x - 50 + nameBgWidth, y - 17}, 
+            nameFillColor, 
+            10.0f);  
+        绘制字体描边(
+            23, 
+            x - 67.5f - textSize_id.x * 0.5f, 
+            y - 30 - textSize_id.y * 0.5f, 
+            ImVec4{255, 255, 255, 255},  
+            to_string(绘制.对象信息.敌人信息.队伍).c_str()
+        );
+        ImColor nameColor = ImColor(
+            static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].名称颜色[0] * 255 + 0.5),
+            static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].名称颜色[1] * 255 + 0.5),
+            static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].名称颜色[2] * 255 + 0.5),
+            static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].名称颜色[3] * 255 + 0.5)
+        );
+        auto textSize_信息 = ImGui::GetFont()->CalcTextSizeA(23, FLT_MAX, -1, 
+                               绘制.对象信息.敌人信息.名字.c_str(), NULL, NULL);
+        绘制字体描边(
+            23, 
+            x - 40, 
+            y - 29 - (textSize_信息.y / 2), 
+            ImVec4{
+                nameColor.Value.x, 
+                nameColor.Value.y, 
+                nameColor.Value.z, 
+                nameColor.Value.w
+            }, 
+            绘制.对象信息.敌人信息.名字.c_str()
+        );
+        string 距离文本 = to_string((int)绘制.对象信息.敌人信息.距离) + "";
+        auto textSize_距离 = ImGui::GetFont()->CalcTextSizeA(20, FLT_MAX, -1, 
+                               距离文本.c_str(), NULL, NULL);
+        ImGui::GetBackgroundDrawList()->AddCircleFilled(
+            {x + 90, y - 30},
+            15,  
+            ImColor(0, 255, 0, 255),  
+            0);
+        绘制字体描边(
+            20, 
+            x + 90 - textSize_距离.x * 0.5f,
+            y - 30 - textSize_距离.y * 0.5f, 
+            ImVec4{255, 0, 0, 255},  
+            距离文本.c_str()
+        );
+    }
+} else if(绘制.按钮.血条绘图==5) 
+{
+    if (当前血量 > 0) {
+        float x = MIDDLE; 
+        float y = top - -10; 
+        ImColor 联赛health = 
+            当前血量 == 100.0f ? ImColor(255, 255, 255, 155) :
+            当前血量 >= 90.0f ? ImColor(255, 255, 220, 255) :
+            当前血量 >= 80.0f ? ImColor(255, 255, 180, 255) :
+            当前血量 >= 70.0f ? ImColor(255, 255, 140, 255) :
+            当前血量 >= 60.0f ? ImColor(255, 200, 100, 255) :
+            当前血量 >= 50.0f ? ImColor(255, 150, 150, 255) :
+            当前血量 >= 40.0f ? ImColor(255, 120, 120, 255) :
+            当前血量 >= 30.0f ? ImColor(255, 90, 90, 255) :
+            当前血量 >= 20.0f ? ImColor(255, 60, 60, 255) :
+            当前血量 >= 10.0f ? ImColor(255, 30, 30, 255) :
+            当前血量 >= 5.0f  ? ImColor(255, 0, 0, 200) :
+                               ImColor(255, 0, 0, 255);
+        auto textSize_id = ImGui::GetFont()->CalcTextSizeA(23, FLT_MAX, -1, 
+                            to_string(绘制.对象信息.敌人信息.队伍).c_str(), NULL, NULL);
+        ImGui::GetBackgroundDrawList()->AddRectFilled(
+            {x - 75, y - 43}, 
+            {x - 60 + textSize_id.x, y - 17}, 
+            ImColor(static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[0] * 255 + 0.5),
+                   static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[1] * 255 + 0.5),
+                   static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[2] * 255 + 0.5),
+                   static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].方框颜色[3] * 255 + 0.5)), 
+            0);
+        ImColor nameFillColor;
+        switch(绘制.对象信息.敌人信息.队伍 % 7) {
+            case 0: nameFillColor = ImColor(0, 255, 0, 80); break;   
+            case 1: nameFillColor = ImColor(0, 0, 255, 80); break;   
+            case 2: nameFillColor = ImColor(255, 0, 255, 80); break; 
+            case 3: nameFillColor = ImColor(255, 165, 0, 80); break; 
+            case 4: nameFillColor = ImColor(0, 255, 255, 80); break; 
+            case 5: nameFillColor = ImColor(255, 192, 203, 80); break; 
+            default: nameFillColor = ImColor(255, 255, 0, 80); break; 
+        }
+        ImGui::GetBackgroundDrawList()->AddRectFilled(
+            {x - 60 + textSize_id.x, y - 43}, 
+            {x + 75, y - 17}, 
+            nameFillColor, 
+            0);
+        ImGui::GetBackgroundDrawList()->AddRectFilled(
+            {x - 75, y - 17}, 
+            {x + 75, y - 11}, 
+            ImColor(50, 50, 50, 200), 
+            0);
+        ImGui::GetBackgroundDrawList()->AddRectFilled(
+            {x - 75, y - 17}, 
+            {x - 75 + (当前血量 * 150 / 100), y - 11}, 
+            联赛health, 
+            0);
+        绘制字体描边(
+            23, 
+            x - 67.5f, 
+            y - 29 - (textSize_id.y / 2), 
+            ImVec4{255, 255, 255, 255}, 
+            to_string(绘制.对象信息.敌人信息.队伍).c_str()
+        );
+        auto textSize_信息 = ImGui::GetFont()->CalcTextSizeA(23, FLT_MAX, -1, 
+                               绘制.对象信息.敌人信息.名字.c_str(), NULL, NULL);
+        绘制字体描边(
+            23, 
+            x - 53 + textSize_id.x, 
+            y - 29 - (textSize_信息.y / 2), 
+            ImVec4{255, 255, 255, 255}, 
+            绘制.对象信息.敌人信息.名字.c_str()
+        );
+    }
+}
+}
+
+void 绘图::绘制骨骼(骨骼数据& 骨骼, D4DVector& 屏幕坐标, bool LineOfSightTo, float 距离) {
+    // ImColor 骨骼color = ImColor(static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].骨骼颜色[0] * 255 + 0.5),static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].骨骼颜色[1] * 255 + 0.5),static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].骨骼颜色[2] * 255 + 0.5),static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].骨骼颜色[3] * 255 + 0.5));
+
+    ImColor 骨骼color;
+    if (LineOfSightTo) {
+        骨骼color = ImColor(static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].骨骼颜色[0] * 255 + 0.5), static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].骨骼颜色[1] * 255 + 0.5), static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].骨骼颜色[2] * 255 + 0.5), static_cast<int>(绘制.Colorset[(int)绘制.对象信息.敌人信息.isboot].骨骼颜色[3] * 255 + 0.5));
+    } else {
+        骨骼color = ImColor(0, 255, 0, 100);
+    }
+
+    // ImGui::GetBackgroundDrawList()->AddCircle(ImVec2(骨骼.Head.X, 骨骼.Head.Y), 屏幕坐标.W/13, 骨骼color, 0, 绘制.按钮.骨骼粗细);
+    if (距离 < 绘制.骨骼距离限制) {
+        if (sqrt(pow(骨骼.Chest.X - 骨骼.Pelvis.X, 2) + pow(骨骼.Chest.Y - 骨骼.Pelvis.Y, 2)) < 100) {
+            ImGui::GetForegroundDrawList()->AddLine({骨骼.Chest.X, 骨骼.Chest.Y}, {骨骼.Pelvis.X, 骨骼.Pelvis.Y}, 骨骼color, 绘制.按钮.骨骼粗细);
+        }
+        if (sqrt(pow(骨骼.Chest.X - 骨骼.Left_Shoulder.X, 2) + pow(骨骼.Chest.Y - 骨骼.Left_Shoulder.Y, 2)) < 100) {
+            ImGui::GetForegroundDrawList()->AddLine({骨骼.Chest.X, 骨骼.Chest.Y}, {骨骼.Left_Shoulder.X, 骨骼.Left_Shoulder.Y}, 骨骼color, 绘制.按钮.骨骼粗细);
+        }
+        if (sqrt(pow(骨骼.Left_Shoulder.X - 骨骼.Left_Elbow.X, 2) + pow(骨骼.Left_Shoulder.Y - 骨骼.Left_Elbow.Y, 2)) < 100) {
+            ImGui::GetForegroundDrawList()->AddLine({骨骼.Left_Shoulder.X, 骨骼.Left_Shoulder.Y}, {骨骼.Left_Elbow.X, 骨骼.Left_Elbow.Y}, 骨骼color, 绘制.按钮.骨骼粗细);
+        }
+        if (sqrt(pow(骨骼.Left_Elbow.X - 骨骼.Left_Wrist.X, 2) + pow(骨骼.Left_Elbow.Y - 骨骼.Left_Wrist.Y, 2)) < 100) {
+            ImGui::GetForegroundDrawList()->AddLine({骨骼.Left_Elbow.X, 骨骼.Left_Elbow.Y}, {骨骼.Left_Wrist.X, 骨骼.Left_Wrist.Y}, 骨骼color, 绘制.按钮.骨骼粗细);
+        }
+        if (sqrt(pow(骨骼.Chest.X - 骨骼.Right_Shoulder.X, 2) + pow(骨骼.Chest.Y - 骨骼.Right_Shoulder.Y, 2)) < 100) {
+            ImGui::GetForegroundDrawList()->AddLine({骨骼.Chest.X, 骨骼.Chest.Y}, {骨骼.Right_Shoulder.X, 骨骼.Right_Shoulder.Y}, 骨骼color, 绘制.按钮.骨骼粗细);
+        }
+        if (sqrt(pow(骨骼.Right_Shoulder.X - 骨骼.Right_Elbow.X, 2) + pow(骨骼.Right_Shoulder.Y - 骨骼.Right_Elbow.Y, 2)) < 100) {
+            ImGui::GetForegroundDrawList()->AddLine({骨骼.Right_Shoulder.X, 骨骼.Right_Shoulder.Y}, {骨骼.Right_Elbow.X, 骨骼.Right_Elbow.Y}, 骨骼color, 绘制.按钮.骨骼粗细);
+        }
+        if (sqrt(pow(骨骼.Right_Elbow.X - 骨骼.Right_Wrist.X, 2) + pow(骨骼.Right_Elbow.Y - 骨骼.Right_Wrist.Y, 2)) < 100) {
+            ImGui::GetForegroundDrawList()->AddLine({骨骼.Right_Elbow.X, 骨骼.Right_Elbow.Y}, {骨骼.Right_Wrist.X, 骨骼.Right_Wrist.Y}, 骨骼color, 绘制.按钮.骨骼粗细);
+        }
+        if (sqrt(pow(骨骼.Pelvis.X - 骨骼.Left_Thigh.X, 2) + pow(骨骼.Pelvis.Y - 骨骼.Left_Thigh.Y, 2)) < 100) {
+            ImGui::GetForegroundDrawList()->AddLine({骨骼.Pelvis.X, 骨骼.Pelvis.Y}, {骨骼.Left_Thigh.X, 骨骼.Left_Thigh.Y}, 骨骼color, 绘制.按钮.骨骼粗细);
+        }
+        if (sqrt(pow(骨骼.Left_Thigh.X - 骨骼.Left_Knee.X, 2) + pow(骨骼.Left_Thigh.Y - 骨骼.Left_Knee.Y, 2)) < 100) {
+            ImGui::GetForegroundDrawList()->AddLine({骨骼.Left_Thigh.X, 骨骼.Left_Thigh.Y}, {骨骼.Left_Knee.X, 骨骼.Left_Knee.Y}, 骨骼color, 绘制.按钮.骨骼粗细);
+        }
+        if (sqrt(pow(骨骼.Left_Knee.X - 骨骼.Left_Ankle.X, 2) + pow(骨骼.Left_Knee.Y - 骨骼.Left_Ankle.Y, 2)) < 100) {
+            ImGui::GetForegroundDrawList()->AddLine({骨骼.Left_Knee.X, 骨骼.Left_Knee.Y}, {骨骼.Left_Ankle.X, 骨骼.Left_Ankle.Y}, 骨骼color, 绘制.按钮.骨骼粗细);
+        }
+        if (sqrt(pow(骨骼.Pelvis.X - 骨骼.Right_Thigh.X, 2) + pow(骨骼.Pelvis.Y - 骨骼.Right_Thigh.Y, 2)) < 100) {
+            ImGui::GetForegroundDrawList()->AddLine({骨骼.Pelvis.X, 骨骼.Pelvis.Y}, {骨骼.Right_Thigh.X, 骨骼.Right_Thigh.Y}, 骨骼color, 绘制.按钮.骨骼粗细);
+        }
+        if (sqrt(pow(骨骼.Right_Thigh.X - 骨骼.Right_Knee.X, 2) + pow(骨骼.Right_Thigh.Y - 骨骼.Right_Knee.Y, 2)) < 100) {
+            ImGui::GetForegroundDrawList()->AddLine({骨骼.Right_Thigh.X, 骨骼.Right_Thigh.Y}, {骨骼.Right_Knee.X, 骨骼.Right_Knee.Y}, 骨骼color, 绘制.按钮.骨骼粗细);
+        }
+        if (sqrt(pow(骨骼.Right_Knee.X - 骨骼.Right_Ankle.X, 2) + pow(骨骼.Right_Knee.Y - 骨骼.Right_Ankle.Y, 2)) < 100) {
+            ImGui::GetForegroundDrawList()->AddLine({骨骼.Right_Knee.X, 骨骼.Right_Knee.Y}, {骨骼.Right_Ankle.X, 骨骼.Right_Ankle.Y}, 骨骼color, 绘制.按钮.骨骼粗细);
+        }
+    }
+}
+
+void 绘图::绘制自瞄触摸范围(float 触摸范围, float 触摸范围X, float 触摸范围Y) {
+    auto textSize = ImGui::CalcTextSize("触摸位置,长按拖动", 0, 30);
+    ImGui::GetForegroundDrawList()->AddRectFilled({触摸范围X - 触摸范围 / 2, PY * 2 - 触摸范围Y + 触摸范围 / 2}, {触摸范围X + 触摸范围 / 2, PY * 2 - 触摸范围Y - 触摸范围 / 2}, ImColor(255, 0, 0, 120));
+    ImGui::GetForegroundDrawList()->AddText(NULL, 30, {触摸范围X - (textSize.x / 2), PY * 2 - 触摸范围Y}, ImColor(255, 255, 255), "触摸位置,长按拖动");
+}
+
+void 绘图::绘制字体描边(float size, int x, int y, ImVec4 color, const char* str) {
+    ImGui::GetBackgroundDrawList()->AddText(nullptr, size, ImVec2(x + 1, y), ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 0.0f, 1.0f)), str);
+    ImGui::GetBackgroundDrawList()->AddText(nullptr, size, ImVec2(x - 0.1, y), ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 0.0f, 1.0f)), str);
+    ImGui::GetBackgroundDrawList()->AddText(nullptr, size, ImVec2(x, y + 1), ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 0.0f, 1.0f)), str);
+    ImGui::GetBackgroundDrawList()->AddText(nullptr, size, ImVec2(x, y - 1), ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 0.0f, 1.0f)), str);
+    ImGui::GetBackgroundDrawList()->AddText(nullptr, size, ImVec2(x, y), ImGui::ColorConvertFloat4ToU32(color), str);
+}
+
+void 绘图::绘制加粗文本(float size, float x, float y, ImColor color, ImColor color1, const char* str) {
+    // ImGui::GetBackgroundDrawList()->AddText(nullptr, size, ImVec2(x - 0.1, y - 0.1), color1, str);
+    // ImGui::GetBackgroundDrawList()->AddText(nullptr, size, ImVec2(x + 0.1, y + 0.1), color1, str);
+    ImGui::GetBackgroundDrawList()->AddText(nullptr, size, ImVec2(x, y), color, str);
+}
+
+bool 绘图::WorldTurnScreen(VecTor2& Screen, VecTor3 World, float Matrix[]) {
+    float Camera = Matrix[3] * World.x + Matrix[7] * World.y + Matrix[11] * World.z + Matrix[15];
+    if (Camera < 0.03) {
+        return false;
+    }
+    Screen.x = PX + (Matrix[0] * World.x + Matrix[4] * World.y + Matrix[8] * World.z + Matrix[12]) / Camera * PX;
+    Screen.y = PY - (Matrix[1] * World.x + Matrix[5] * World.y + Matrix[9] * World.z + Matrix[13]) / Camera * PY;
+    return true;
+}
+
+// 爆炸范围
+void 绘图::ExplosionRange(D3DVector Obj, ImColor color, float Range, float thickn, float Matrix[]) {
+    VecTor3 l1, l2, l3, l4, l5, l6, l7, l8;
+    VecTor2 lw1, lw2, lw3, lw4, lw5, lw6, lw7, lw8;
+    l1 = VecTor3(Obj.X - Range, Obj.Y - Range, Obj.Z);
+    l2 = VecTor3(Obj.X, Obj.Y - Range, Obj.Z);
+    l3 = VecTor3(Obj.X + Range, Obj.Y - Range, Obj.Z);
+    l4 = VecTor3(Obj.X - Range, Obj.Y, Obj.Z);
+    l5 = VecTor3(Obj.X + Range, Obj.Y, Obj.Z);
+    l6 = VecTor3(Obj.X - Range, Obj.Y + Range, Obj.Z);
+    l7 = VecTor3(Obj.X, Obj.Y + Range, Obj.Z);
+    l8 = VecTor3(Obj.X + Range, Obj.Y + Range, Obj.Z);
+    WorldTurnScreen(lw1, l1, Matrix);
+    WorldTurnScreen(lw2, l2, Matrix);
+    WorldTurnScreen(lw3, l3, Matrix);
+    WorldTurnScreen(lw4, l4, Matrix);
+    WorldTurnScreen(lw5, l5, Matrix);
+    WorldTurnScreen(lw6, l6, Matrix);
+    WorldTurnScreen(lw7, l7, Matrix);
+    WorldTurnScreen(lw8, l8, Matrix);
+
+    // 绘制曲线
+    ImGui::GetForegroundDrawList()->AddBezierCubic({lw4.x, lw4.y}, {lw1.x, lw1.y}, {lw2.x, lw2.y}, {lw2.x, lw2.y}, color, thickn);
+    ImGui::GetForegroundDrawList()->AddBezierCubic({lw2.x, lw2.y}, {lw3.x, lw3.y}, {lw5.x, lw5.y}, {lw5.x, lw5.y}, color, thickn);
+    ImGui::GetForegroundDrawList()->AddBezierCubic({lw5.x, lw5.y}, {lw8.x, lw8.y}, {lw7.x, lw7.y}, {lw7.x, lw7.y}, color, thickn);
+    ImGui::GetForegroundDrawList()->AddBezierCubic({lw7.x, lw7.y}, {lw6.x, lw6.y}, {lw4.x, lw4.y}, {lw4.x, lw4.y}, color, thickn);
+}
+
+void 绘图::Parabola(VecTor3 obj, float Matrix[]) {
+    static std::vector<VecTor3> grenadePath;  // 将 grenadePath 声明为静态局部变量
+    // 创建一个新的游戏内坐标点
+    VecTor3 newGrenadePosition;
+    newGrenadePosition = obj;
+
+    // 添加新位置到路径
+    grenadePath.push_back(newGrenadePosition);
+
+    // 限制路径点的数量，例如最多存储 100 个点
+    if (grenadePath.size() > 500) {
+        grenadePath.erase(grenadePath.begin(), grenadePath.begin() + grenadePath.size() - 500);
+    }
+    VecTor2 screenPos;
+    // 准备绘制路径
+
+    std::vector<VecTor2> screenPath;  // 存储转换后的屏幕坐标
+    for (const VecTor3& pos : grenadePath) {
+        // 将每个游戏内坐标转换为屏幕坐标
+        float Camera = Matrix[3] * pos.x + Matrix[7] * pos.y + Matrix[11] * pos.z + Matrix[15];
+        screenPos.x = PX + (Matrix[0] * pos.x + Matrix[4] * pos.y + Matrix[8] * pos.z + Matrix[12]) / Camera * PX;
+        screenPos.y = PY - (Matrix[1] * pos.x + Matrix[5] * pos.y + Matrix[9] * pos.z + Matrix[13]) / Camera * PY;
+        // WorldToScreen(&screenPos ,pos);
+        screenPath.push_back(screenPos);
+    }
+
+    // 绘制路径
+    if (screenPath.size() > 1) {
+        // 反转路径点，因为我们是从尾部开始绘制的
+        std::reverse(screenPath.begin(), screenPath.end());
+
+        for (size_t i = 0; i < screenPath.size() - 1; ++i) {
+            // 绘制线段连接每个点
+            // ImGui::GetForegroundDrawList()->AddLine({screenPath[i].x, screenPath[i].y}, {screenPath[i + 8].x, screenPath[i + 8].y}, color, );
+            ImGui::GetForegroundDrawList()->AddCircleFilled({screenPath[i].x, screenPath[i].y}, 3, ImColor(0, 255, 0, 255), 3);
+        }
+    }
+}

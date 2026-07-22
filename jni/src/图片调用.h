@@ -1,0 +1,569 @@
+#ifndef 手持调用_H
+#define 手持调用_H
+#include "./include/My_Utils/imgui_image.h"
+
+#include <map>
+#include <string.h>
+#include <dirent.h>
+#include <sys/stat.h>
+
+#include <string.h>
+#include <dirent.h>
+#include <sys/stat.h>
+
+#include "手持图片/101001.h"
+#include "手持图片/101002.h"
+#include "手持图片/101003.h"
+#include "手持图片/101004.h"
+#include "手持图片/101005.h"
+#include "手持图片/101006.h"
+#include "手持图片/101007.h"
+#include "手持图片/101008.h"
+#include "手持图片/101009.h"
+#include "手持图片/101010.h"
+#include "手持图片/101011.h"
+#include "手持图片/101012.h"
+#include "手持图片/102001.h"
+#include "手持图片/102002.h"
+#include "手持图片/102003.h"
+#include "手持图片/102004.h"
+#include "手持图片/102005.h"
+#include "手持图片/102007.h"
+#include "手持图片/102105.h"
+#include "手持图片/103001.h"
+#include "手持图片/103002.h"
+#include "手持图片/103003.h"
+#include "手持图片/103004.h"
+#include "手持图片/103005.h"
+#include "手持图片/103006.h"
+#include "手持图片/103007.h"
+#include "手持图片/103008.h"
+#include "手持图片/103009.h"
+#include "手持图片/103010.h"
+#include "手持图片/103011.h"
+#include "手持图片/103012.h"
+#include "手持图片/103013.h"
+#include "手持图片/103014.h"
+#include "手持图片/103015.h"
+#include "手持图片/103100.h"
+#include "手持图片/103901.h"
+#include "手持图片/103902.h"
+#include "手持图片/103903.h"
+#include "手持图片/104001.h"
+#include "手持图片/104002.h"
+#include "手持图片/104003.h"
+#include "手持图片/104004.h"
+#include "手持图片/104100.h"
+#include "手持图片/105001.h"
+#include "手持图片/105002.h"
+#include "手持图片/105010.h"
+#include "手持图片/106001.h"
+#include "手持图片/106002.h"
+#include "手持图片/106003.h"
+#include "手持图片/106004.h"
+#include "手持图片/106005.h"
+#include "手持图片/106006.h"
+#include "手持图片/106007.h"
+#include "手持图片/106008.h"
+#include "手持图片/106010.h"
+#include "手持图片/107001.h"
+#include "手持图片/107007.h"
+#include "手持图片/108001.h"
+#include "手持图片/108002.h"
+#include "手持图片/108003.h"
+#include "手持图片/108004.h"
+#include "手持图片/602001.h"
+#include "手持图片/602002.h"
+#include "手持图片/602003.h"
+#include "手持图片/602004.h"
+
+#include "手持图片/101013.h"
+#include "手持图片/102008.h"
+#include "手持图片/106011.h"
+#include "手持图片/107006.h"
+#include "手持图片/107008.h"
+
+#include "手持图片/真人.h"
+#include "手持图片/人机.h"
+#include "手持图片/拳头.h"
+#include "手持图片/盒子.h"
+#include "手持图片/自瞄按钮1.h"
+#include "手持图片/自瞄按钮2.h"
+
+#include "手持图片/车辆/2001001.png.h"
+#include "手持图片/车辆/2001002.png.h"
+#include "手持图片/车辆/2001003.png.h"
+#include "手持图片/车辆/2001004.png.h"
+#include "手持图片/车辆/2001005.png.h"
+#include "手持图片/车辆/2001006.png.h"
+#include "手持图片/车辆/2001007.png.h"
+#include "手持图片/车辆/2001008.png.h"
+#include "手持图片/车辆/2001009.png.h"
+#include "手持图片/车辆/2001010.png.h"
+#include "手持图片/车辆/2001011.png.h"
+#include "手持图片/车辆/2001012.png.h"
+#include "手持图片/车辆/2001013.png.h"
+#include "手持图片/车辆/2001014.png.h"
+
+#include "手持图片/车辆/2002001.png.h"
+#include "手持图片/车辆/2002002.png.h"
+#include "手持图片/车辆/2002003.png.h"
+#include "手持图片/车辆/2002004.png.h"
+#include "手持图片/车辆/2002005.png.h"
+#include "手持图片/车辆/2002006.png.h"
+
+#include "手持图片/车辆/2003001.png.h"
+#include "手持图片/车辆/2003002.png.h"
+#include "手持图片/车辆/2004001.png.h"
+#include "手持图片/车辆/2004002.png.h"
+
+#include "手持图片/图标.h"
+// #include "手持图片/背景图.h"
+// #include "辅助类.h"
+
+
+#include "手持图片/Logo/快手.h"
+
+#include "手持图片/宝箱.h"
+#include "手持图片/药箱.h"
+#include "手持图片/武器箱.h"
+
+// 添加必要的头文件
+#include <unistd.h>  // 提供 access() 函数和 F_OK 常量
+#include <stdio.h>   // 提供文件操作函数
+#include <stdlib.h>  // 提供 system() 函数
+#include <string.h>  // 提供字符串操作函数
+#include <dirent.h>  // 提供目录操作函数
+#include <sys/stat.h> // 提供 stat() 函数
+
+#include <map>
+#include <string>
+extern std::map<int, TextureInfo> 手持图片;
+// 内联函数：查找头像文件
+inline char* findAvatarFile(const char* directoryPath) {
+    DIR* dir = opendir(directoryPath);
+    if (dir == NULL) {
+        return NULL;
+    }
+    
+    struct dirent* entry;
+    char* avatarPath = NULL;
+    time_t latestTime = 0;
+    
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        
+        char* filename = entry->d_name;
+        if (strstr(filename, ".png") != NULL || strstr(filename, ".jpg") != NULL || 
+            strstr(filename, ".jpeg") != NULL || strstr(filename, ".bmp") != NULL || 
+            strstr(filename, ".webp") != NULL) {
+            
+            char* fullPath = (char*)malloc(strlen(directoryPath) + strlen(filename) + 2);
+            strcpy(fullPath, directoryPath);
+            if (directoryPath[strlen(directoryPath)-1] != '/') {
+                strcat(fullPath, "/");
+            }
+            strcat(fullPath, filename);
+            
+            struct stat fileStat;
+            if (stat(fullPath, &fileStat) == 0 && S_ISREG(fileStat.st_mode)) {
+                if (fileStat.st_size > 1024) {
+                    if (fileStat.st_mtime > latestTime) {
+                        latestTime = fileStat.st_mtime;
+                        if (avatarPath != NULL) {
+                            free(avatarPath);
+                        }
+                        avatarPath = strdup(fullPath);
+                    }
+                }
+            }
+            
+            free(fullPath);
+        }
+    }
+    
+    closedir(dir);
+    return avatarPath;
+}
+
+// 内联函数：读取文件到内存
+inline unsigned char* readFileToMemory(const char* filename, long* fileSize) {
+    FILE* file = fopen(filename, "rb");
+    if (!file) {
+        return NULL;
+    }
+    
+    fseek(file, 0, SEEK_END);
+    *fileSize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    unsigned char* buffer = (unsigned char*)malloc(*fileSize);
+    if (buffer) {
+        fread(buffer, 1, *fileSize, file);
+    }
+    
+    fclose(file);
+    return buffer;
+}
+
+// // 内联函数：加载微信头像（使用索引200）
+// inline void 加载微信头像() {
+    // const char* avatar_dir_path = "/data/user/0/com.tencent.mm/MicroMsg/last_avatar_dir/";
+    // char* avatar_path = findAvatarFile(avatar_dir_path);
+    
+    // if (avatar_path != NULL) {
+        // printf("[INFO] 找到微信头像文件: %s\n", avatar_path);
+        
+        // long file_size;
+        // unsigned char* file_data = readFileToMemory(avatar_path, &file_size);
+        
+        // if (file_data != NULL) {
+            // 手持图片[60] = createTexture_ALL_FromMem(file_data, file_size);
+            // free(file_data);
+            
+            // if (手持图片[60].textureId != NULL) {
+                // free(avatar_path);
+                // return;
+            // }
+        // }
+        
+        // free(avatar_path);
+    // }
+    
+    // 手持图片[60] = createTexture_ALL_FromMem(图标, sizeof(图标));
+// }
+inline void 加载微信头像() {
+    const char* avatar_dir_path = "/data/user/0/com.tencent.mm/MicroMsg/last_avatar_dir/";
+    printf("[DEBUG] 尝试加载微信头像，目录: %s\n", avatar_dir_path);
+    
+    char* avatar_path = findAvatarFile(avatar_dir_path);
+    
+    if (avatar_path != NULL) {
+        printf("[INFO] 找到微信头像文件: %s\n", avatar_path);
+        
+        long file_size;
+        unsigned char* file_data = readFileToMemory(avatar_path, &file_size);
+        
+        if (file_data != NULL) {
+            手持图片[60] = createTexture_ALL_FromMem(file_data, file_size);
+            free(file_data);
+            
+            if (手持图片[60].textureId != NULL) {
+                free(avatar_path);
+                return;
+            }
+        }
+        
+        free(avatar_path);
+        // ... 其余代码 ...
+    } else {
+        printf("[DEBUG] 未找到微信头像文件\n");
+    }
+    
+    // 检查纹理是否创建成功
+    if (手持图片[60].textureId == NULL) {
+        printf("[DEBUG] 微信头像纹理创建失败，使用默认图标\n");
+    } else {
+        printf("[DEBUG] 微信头像纹理创建成功\n");
+    }
+}
+// 加载自定义头像文件
+inline void 加载自定义头像() {
+    const char* 自定义头像路径 = "/storage/emulated/0/币子/自定义头像";
+    printf("[DEBUG] 尝试加载自定义头像，路径: %s\n", 自定义头像路径);
+    
+    char* 头像文件路径 = findAvatarFile("/storage/emulated/0/币子/");
+    
+    if (头像文件路径 != NULL) {
+        printf("[INFO] 找到自定义头像文件: %s\n", 头像文件路径);
+        
+        long 文件大小;
+        unsigned char* 文件数据 = readFileToMemory(头像文件路径, &文件大小);
+        
+        if (文件数据 != NULL) {
+            手持图片[60] = createTexture_ALL_FromMem(文件数据, 文件大小);
+            free(文件数据);
+            
+            if (手持图片[60].textureId != NULL) {
+                free(头像文件路径);
+                printf("[DEBUG] 自定义头像纹理创建成功\n");
+                return;
+            }
+        }
+        
+        free(头像文件路径);
+    } else {
+        printf("[DEBUG] 未找到自定义头像文件，检查路径: /storage/emulated/0/币子/\n");
+    }
+    
+    // 如果自定义头像加载失败，使用默认图标
+    if (手持图片[60].textureId == NULL) {
+        printf("[DEBUG] 自定义头像加载失败，使用默认图标\n");
+        手持图片[60] = createTexture_ALL_FromMem(图标, sizeof(图标));
+    }
+}
+
+// 加载默认图片（快手Logo）
+inline void 加载默认头像() {
+    printf("[DEBUG] 加载默认头像\n");
+    
+    // 检查是否已加载快手Logo
+    if (手持图片.find(30) != 手持图片.end() && 手持图片[30].textureId != NULL) {
+        手持图片[60] = 手持图片[200]; // 复制纹理信息
+        printf("[DEBUG] 默认头像加载成功\n");
+    } else {
+        // 如果快手Logo未加载，使用图标
+        printf("[DEBUG] 内置图标未找到，使用默认图标\n");
+        手持图片[60] = createTexture_ALL_FromMem(图标, sizeof(图标));
+    }
+}
+// inline static void 加载头像() {
+    // // 根据按钮.头像样式选择加载方式
+    // switch(绘制.按钮.头像样式) {
+        // case 0: // 微信头像
+            // 加载微信头像();
+            // break;
+        // case 1: // 自定义头像
+            // 加载自定义头像();
+            // break;
+        // case 2: // 默认头像
+            // 加载默认头像();
+            // break;
+        // default: // 默认使用微信头像
+            // 加载微信头像();
+            // break;
+    // }
+// }
+// // 在图片调用.h中修改加载头像函数
+// inline static void 加载头像() {
+    // // 检查文件系统，确定当前头像样式
+    // int 当前头像样式 = 0; // 默认微信头像
+    
+    // // 检查是否存在各种头像样式文件
+    // if (access("/storage/emulated/0/币子/头像样式0", F_OK) == 0) {
+        // 当前头像样式 = 0; // 微信头像
+    // } else if (access("/storage/emulated/0/币子/头像样式1", F_OK) == 0) {
+        // 当前头像样式 = 1; // 自定义头像
+    // } else if (access("/storage/emulated/0/币子/头像样式2", F_OK) == 0) {
+        // 当前头像样式 = 2; // 默认头像
+    // } else {
+        // // 如果都没有，创建默认样式0
+        // FILE* defaultFile = fopen("/storage/emulated/0/币子/头像样式0", "w");
+        // if (defaultFile) fclose(defaultFile);
+        // 当前头像样式 = 0;
+    // }
+    
+    // // 根据按钮.头像样式选择加载方式
+    // switch(当前头像样式) {
+        // case 0: // 微信头像
+            // 加载微信头像();
+            // break;
+        // case 1: // 自定义头像
+            // 加载自定义头像();
+            // break;
+        // case 2: // 默认头像
+            // 加载默认头像();
+            // break;
+        // default: // 默认使用微信头像
+            // 加载微信头像();
+            // break;
+    // }
+// }
+// 在图片调用.h中修改加载头像函数
+inline static void 加载头像() {
+    // 1. 首先，确保基础目录存在，并初始化默认文件
+    const char* 基础路径 = "/storage/emulated/0/币子/";
+    struct stat 路径状态 = {0};
+    
+    // 检查路径是否存在
+    if (stat(基础路径, &路径状态) == -1) {
+        printf("[INFO] 头像目录不存在，正在创建: %s\n", 基础路径);
+        // 使用mkdir创建目录，权限设置为0755（所有者可读写执行，组和其他人可读执行）
+        if (mkdir(基础路径, 0755) == -1) {
+            printf("[ERROR] 无法创建目录: %s\n", 基础路径);
+            // 如果目录创建失败，直接使用默认头像样式
+            加载默认头像();
+            return;
+        }
+        printf("[INFO] 目录创建成功。\n");
+        
+        // 创建默认的头像样式标记文件（样式0：微信头像）
+        FILE* 样式文件 = fopen("/storage/emulated/0/币子/头像样式0", "w");
+        if (样式文件) {
+            fprintf(样式文件, "0"); // 写入样式标识
+            fclose(样式文件);
+            printf("[INFO] 已创建默认头像样式文件(样式0)。\n");
+        }
+        
+        // 将内置的“图标”资源作为默认头像文件写入新目录
+        // 注意：这里假设“图标”这个变量是已在别处定义的内置图片数据数组
+        FILE* 头像文件 = fopen("/storage/emulated/0/币子/默认头像.png", "wb");
+        if (头像文件 && 图标 != NULL) { // 需要确保‘图标’变量在此作用域可访问
+            // 写入图标数据。sizeof(图标)需要根据实际情况调整，这里仅为示例。
+            // 更严谨的做法是有一个变量记录图标数据的大小，此处为演示使用sizeof。
+            fwrite(图标, 1, sizeof(图标), 头像文件);
+            fclose(头像文件);
+            printf("[INFO] 已将内置默认头像文件写入目录。\n");
+        } else {
+            printf("[WARN] 无法写入默认头像文件。\n");
+        }
+    }
+    
+    // 2. 继续原有的头像样式判断逻辑
+    int 当前头像样式 = 0; // 默认微信头像
+    
+    if (access("/storage/emulated/0/币子/头像样式0", F_OK) == 0) {
+        当前头像样式 = 0; // 微信头像
+    } else if (access("/storage/emulated/0/币子/头像样式1", F_OK) == 0) {
+        当前头像样式 = 1; // 自定义头像
+    } else if (access("/storage/emulated/0/币子/头像样式2", F_OK) == 0) {
+        当前头像样式 = 2; // 默认头像
+    } else {
+        // 如果都没有（理论上上一步已创建，此处为保底逻辑），创建默认样式0
+        FILE* defaultFile = fopen("/storage/emulated/0/币子/头像样式0", "w");
+        if (defaultFile) fclose(defaultFile);
+        当前头像样式 = 0;
+    }
+    
+    // 3. 根据头像样式选择加载方式
+    switch(当前头像样式) {
+        case 0: // 微信头像
+            加载微信头像();
+            break;
+        case 1: // 自定义头像
+            // 此时 /storage/emulated/0/币子/ 目录已确定存在
+            加载自定义头像();
+            break;
+        case 2: // 默认头像
+            加载默认头像();
+            break;
+        default: // 默认使用微信头像
+            加载微信头像();
+            break;
+    }
+}
+
+inline void 加载内存图片()
+{
+    加载头像();
+
+    // 手持图片[250] = createTexture_ALL_FromMem(宝箱, sizeof(宝箱));
+    // 手持图片[251] = createTexture_ALL_FromMem(药箱, sizeof(药箱));
+    // 手持图片[252] = createTexture_ALL_FromMem(武器箱, sizeof(武器箱));
+
+   // 手持图片[200] = createTexture_ALL_FromMem(快手logo, sizeof(快手logo));
+
+    手持图片[30] = createTexture_ALL_FromMem(picture_obj_2001001, sizeof(picture_obj_2001001)); // 蹦蹦车
+    手持图片[31] = createTexture_ALL_FromMem(picture_obj_2001002, sizeof(picture_obj_2001002));
+    手持图片[32] = createTexture_ALL_FromMem(picture_obj_2001003, sizeof(picture_obj_2001003));
+    手持图片[33] = createTexture_ALL_FromMem(picture_obj_2001004, sizeof(picture_obj_2001004));
+    手持图片[34] = createTexture_ALL_FromMem(picture_obj_2001005, sizeof(picture_obj_2001005));
+    手持图片[35] = createTexture_ALL_FromMem(picture_obj_2001006, sizeof(picture_obj_2001006));
+    手持图片[36] = createTexture_ALL_FromMem(picture_obj_2001007, sizeof(picture_obj_2001007));
+    手持图片[37] = createTexture_ALL_FromMem(picture_obj_2001008, sizeof(picture_obj_2001008));
+    手持图片[38] = createTexture_ALL_FromMem(picture_obj_2001009, sizeof(picture_obj_2001009));
+    手持图片[39] = createTexture_ALL_FromMem(picture_obj_2001010, sizeof(picture_obj_2001010));
+    手持图片[53] = createTexture_ALL_FromMem(picture_obj_2001011, sizeof(picture_obj_2001011));
+
+    手持图片[40] = createTexture_ALL_FromMem(picture_obj_2001012, sizeof(picture_obj_2001012));
+    手持图片[41] = createTexture_ALL_FromMem(picture_obj_2001013, sizeof(picture_obj_2001013));
+    手持图片[42] = createTexture_ALL_FromMem(picture_obj_2001014, sizeof(picture_obj_2001014));
+
+    手持图片[43] = createTexture_ALL_FromMem(picture_obj_2002001, sizeof(picture_obj_2002001));
+    手持图片[44] = createTexture_ALL_FromMem(picture_obj_2002002, sizeof(picture_obj_2002002));
+    手持图片[45] = createTexture_ALL_FromMem(picture_obj_2002003, sizeof(picture_obj_2002003));
+    手持图片[46] = createTexture_ALL_FromMem(picture_obj_2002004, sizeof(picture_obj_2002004));
+    手持图片[47] = createTexture_ALL_FromMem(picture_obj_2002005, sizeof(picture_obj_2002005));
+    手持图片[48] = createTexture_ALL_FromMem(picture_obj_2002006, sizeof(picture_obj_2002006));
+
+    手持图片[49] = createTexture_ALL_FromMem(picture_obj_2003001, sizeof(picture_obj_2003001));
+    手持图片[50] = createTexture_ALL_FromMem(picture_obj_2003002, sizeof(picture_obj_2003002));
+    手持图片[51] = createTexture_ALL_FromMem(picture_obj_2004001, sizeof(picture_obj_2004001));
+    手持图片[52] = createTexture_ALL_FromMem(picture_obj_2004002, sizeof(picture_obj_2004002));
+
+    // 手持图片[10] = createTexture_ALL_FromMem(人机图片, sizeof(人机图片));
+    // // 手持图片[60] = createTexture_ALL_FromMem(图标, sizeof(图标));
+    // 手持图片[11] = createTexture_ALL_FromMem(真人图片, sizeof(真人图片));
+    // 手持图片[12] = createTexture_ALL_FromMem(picture_盒子_png, sizeof(picture_盒子_png));
+    // 手持图片[0] = createTexture_ALL_FromMem(picture_拳头_png, sizeof(picture_拳头_png));
+
+    手持图片[101013] = createTexture_ALL_FromMem(picture_101013_png, sizeof(picture_101013_png));
+    手持图片[102008] = createTexture_ALL_FromMem(picture_102008_png, sizeof(picture_102008_png));
+    手持图片[106011] = createTexture_ALL_FromMem(picture_106011_png, sizeof(picture_106011_png));
+    手持图片[107006] = createTexture_ALL_FromMem(picture_107006_png, sizeof(picture_107006_png));
+    手持图片[107008] = createTexture_ALL_FromMem(picture_107008_png, sizeof(picture_107008_png));
+
+    手持图片[3] = createTexture_ALL_FromMem(FunnelIcon4, sizeof(FunnelIcon4));
+    手持图片[4] = createTexture_ALL_FromMem(FunnelIcon5, sizeof(FunnelIcon5));
+    // 手持图片[66] = createTexture_ALL_FromMem(背景图, sizeof(背景图));
+    手持图片[101001] = createTexture_ALL_FromMem(picture_101001_png, sizeof(picture_101001_png));
+    手持图片[101002] = createTexture_ALL_FromMem(picture_101002_png, sizeof(picture_101002_png));
+    手持图片[101003] = createTexture_ALL_FromMem(picture_101003_png, sizeof(picture_101003_png));
+    手持图片[101004] = createTexture_ALL_FromMem(picture_101004_png, sizeof(picture_101004_png));
+    手持图片[101005] = createTexture_ALL_FromMem(picture_101005_png, sizeof(picture_101005_png));
+    手持图片[101006] = createTexture_ALL_FromMem(picture_101006_png, sizeof(picture_101006_png));
+    手持图片[101007] = createTexture_ALL_FromMem(picture_101007_png, sizeof(picture_101007_png));
+    手持图片[101008] = createTexture_ALL_FromMem(picture_101008_png, sizeof(picture_101008_png));
+    手持图片[101009] = createTexture_ALL_FromMem(picture_101009_png, sizeof(picture_101009_png));
+    手持图片[101010] = createTexture_ALL_FromMem(picture_101010_png, sizeof(picture_101010_png));
+    手持图片[101011] = createTexture_ALL_FromMem(picture_101011_png, sizeof(picture_101011_png));
+    手持图片[101012] = createTexture_ALL_FromMem(picture_101012_png, sizeof(picture_101012_png));
+    手持图片[102001] = createTexture_ALL_FromMem(picture_102001_png, sizeof(picture_102001_png));
+    手持图片[102002] = createTexture_ALL_FromMem(picture_102002_png, sizeof(picture_102002_png));
+    手持图片[102003] = createTexture_ALL_FromMem(picture_102003_png, sizeof(picture_102003_png));
+    手持图片[102004] = createTexture_ALL_FromMem(picture_102004_png, sizeof(picture_102004_png));
+    手持图片[102005] = createTexture_ALL_FromMem(picture_102005_png, sizeof(picture_102005_png));
+    手持图片[102007] = createTexture_ALL_FromMem(picture_102007_png, sizeof(picture_102007_png));
+    手持图片[102105] = createTexture_ALL_FromMem(picture_102105_png, sizeof(picture_102105_png));
+    手持图片[103001] = createTexture_ALL_FromMem(picture_103001_png, sizeof(picture_103001_png));
+    手持图片[103002] = createTexture_ALL_FromMem(picture_103002_png, sizeof(picture_103002_png));
+    手持图片[103003] = createTexture_ALL_FromMem(picture_103003_png, sizeof(picture_103003_png));
+    手持图片[103004] = createTexture_ALL_FromMem(picture_103004_png, sizeof(picture_103004_png));
+    手持图片[103005] = createTexture_ALL_FromMem(picture_103005_png, sizeof(picture_103005_png));
+    手持图片[103006] = createTexture_ALL_FromMem(picture_103006_png, sizeof(picture_103006_png));
+    手持图片[103007] = createTexture_ALL_FromMem(picture_103007_png, sizeof(picture_103007_png));
+    手持图片[103008] = createTexture_ALL_FromMem(picture_103008_png, sizeof(picture_103008_png));
+    手持图片[103009] = createTexture_ALL_FromMem(picture_103009_png, sizeof(picture_103009_png));
+    手持图片[103010] = createTexture_ALL_FromMem(picture_103010_png, sizeof(picture_103010_png));
+    手持图片[103011] = createTexture_ALL_FromMem(picture_103011_png, sizeof(picture_103011_png));
+    手持图片[103012] = createTexture_ALL_FromMem(picture_103012_png, sizeof(picture_103012_png));
+    手持图片[103013] = createTexture_ALL_FromMem(picture_103013_png, sizeof(picture_103013_png));
+    手持图片[103014] = createTexture_ALL_FromMem(picture_103014_png, sizeof(picture_103014_png));
+    手持图片[103015] = createTexture_ALL_FromMem(picture_103015_png, sizeof(picture_103015_png));
+    手持图片[103100] = createTexture_ALL_FromMem(picture_103100_png, sizeof(picture_103100_png));
+    手持图片[103901] = createTexture_ALL_FromMem(picture_103901_png, sizeof(picture_103901_png));
+    手持图片[103902] = createTexture_ALL_FromMem(picture_103902_png, sizeof(picture_103902_png));
+    手持图片[103903] = createTexture_ALL_FromMem(picture_103903_png, sizeof(picture_103903_png));
+    手持图片[104001] = createTexture_ALL_FromMem(picture_104001_png, sizeof(picture_104001_png));
+    手持图片[104002] = createTexture_ALL_FromMem(picture_104002_png, sizeof(picture_104002_png));
+    手持图片[104003] = createTexture_ALL_FromMem(picture_104003_png, sizeof(picture_104003_png));
+    手持图片[104004] = createTexture_ALL_FromMem(picture_104004_png, sizeof(picture_104004_png));
+    手持图片[104100] = createTexture_ALL_FromMem(picture_104100_png, sizeof(picture_104100_png));
+    手持图片[105001] = createTexture_ALL_FromMem(picture_105001_png, sizeof(picture_105001_png));
+    手持图片[105002] = createTexture_ALL_FromMem(picture_105002_png, sizeof(picture_105002_png));
+    手持图片[105010] = createTexture_ALL_FromMem(picture_105010_png, sizeof(picture_105010_png));
+    手持图片[106001] = createTexture_ALL_FromMem(picture_106001_png, sizeof(picture_106001_png));
+    手持图片[106002] = createTexture_ALL_FromMem(picture_106002_png, sizeof(picture_106002_png));
+    手持图片[106003] = createTexture_ALL_FromMem(picture_106003_png, sizeof(picture_106003_png));
+    手持图片[106004] = createTexture_ALL_FromMem(picture_106004_png, sizeof(picture_106004_png));
+    手持图片[106005] = createTexture_ALL_FromMem(picture_106005_png, sizeof(picture_106005_png));
+    手持图片[106006] = createTexture_ALL_FromMem(picture_106006_png, sizeof(picture_106006_png));
+    手持图片[106007] = createTexture_ALL_FromMem(picture_106007_png, sizeof(picture_106007_png));
+    手持图片[106008] = createTexture_ALL_FromMem(picture_106008_png, sizeof(picture_106008_png));
+    手持图片[106010] = createTexture_ALL_FromMem(picture_106010_png, sizeof(picture_106010_png));
+    手持图片[107001] = createTexture_ALL_FromMem(picture_107001_png, sizeof(picture_107001_png));
+    手持图片[107007] = createTexture_ALL_FromMem(picture_107007_png, sizeof(picture_107007_png));
+    手持图片[108001] = createTexture_ALL_FromMem(picture_108001_png, sizeof(picture_108001_png));
+    手持图片[108002] = createTexture_ALL_FromMem(picture_108002_png, sizeof(picture_108002_png));
+    手持图片[108003] = createTexture_ALL_FromMem(picture_108003_png, sizeof(picture_108003_png));
+    手持图片[108004] = createTexture_ALL_FromMem(picture_108004_png, sizeof(picture_108004_png));
+    手持图片[602001] = createTexture_ALL_FromMem(picture_602001_png, sizeof(picture_602001_png));
+    手持图片[602002] = createTexture_ALL_FromMem(picture_602002_png, sizeof(picture_602002_png));
+    手持图片[602003] = createTexture_ALL_FromMem(picture_602003_png, sizeof(picture_602003_png));
+    手持图片[602004] = createTexture_ALL_FromMem(picture_602004_png, sizeof(picture_602004_png));
+    // 手持图片[602005] = createTexture_ALL_FromMem(图标2, sizeof(图标2));
+}
+
+#endif
